@@ -239,6 +239,10 @@ async function fsUpdate(col, id, data) {
     <div class="nav-item" onclick="showView('contas',this)"><span class="icon">📅</span> Contas a Pagar</div>
     <div class="nav-item" onclick="showView('mensalidades',this)"><span class="icon">💰</span> Mensalidades</div>
     <div class="nav-item" onclick="showView('despesasfixas',this)"><span class="icon">🔒</span> Despesas Fixas</div>
+    <div class="nav-item" onclick="showView('despesasvariaveis',this)"><span class="icon">🔀</span> Despesas Variáveis</div>
+    <div class="nav-section">Análises</div>
+    <div class="nav-item" onclick="showView('customorador',this)"><span class="icon">🧓</span> Custo por Morador</div>
+    <div class="nav-item" onclick="showView('projecao',this)"><span class="icon">🔮</span> Projeção</div>
   </div>
 </nav>
 
@@ -575,6 +579,112 @@ async function fsUpdate(col, id, data) {
       </div>
     </div>
 
+    <!-- DESPESAS VARIÁVEIS -->
+    <div class="view" id="view-despesasvariaveis">
+      <div class="section-header">
+        <h2>Despesas Variáveis</h2>
+        <div class="flex-gap no-print">
+          <button class="btn btn-accent" onclick="exportDespesasVariaveisCSV()">⬇️ Exportar CSV</button>
+          <button class="btn btn-primary" onclick="window.print()">🖨️ Imprimir</button>
+        </div>
+      </div>
+      <div class="two-col" style="margin-bottom:24px">
+        <div class="form-card">
+          <h3>➕ Cadastrar Despesa Variável</h3>
+          <div class="form-row"><label>Descrição</label><input type="text" id="dv-desc" placeholder="Ex: Mercado"></div>
+          <div class="form-row"><label>Valor (R$)</label><input type="text" inputmode="numeric" id="dv-valor" oninput="maskMoeda(this)" placeholder="0,00"></div>
+          <div class="form-row"><label>Categoria</label><select id="dv-cat"></select></div>
+          <div class="form-row"><label>Unidade</label>
+            <select id="dv-unidade">
+              <option value="Unidade I">🏠 Unidade I</option>
+              <option value="Unidade II">🏠 Unidade II</option>
+              <option value="Pessoal">👥 Pessoal</option>
+            </select>
+          </div>
+          <div class="form-row"><label>Data (opcional)</label><input type="date" id="dv-data"></div>
+          <div class="form-row"><label>Mês de Referência</label>
+            <select id="dv-mes">
+              <option value="1">Janeiro</option><option value="2">Fevereiro</option><option value="3">Março</option>
+              <option value="4">Abril</option><option value="5">Maio</option><option value="6">Junho</option>
+              <option value="7">Julho</option><option value="8">Agosto</option><option value="9">Setembro</option>
+              <option value="10">Outubro</option><option value="11">Novembro</option><option value="12">Dezembro</option>
+            </select>
+          </div>
+          <div class="form-row"><label>Ano de Referência</label>
+            <select id="dv-ano">
+              <option value="2024">2024</option><option value="2025">2025</option>
+              <option value="2026" selected>2026</option><option value="2027">2027</option>
+            </select>
+          </div>
+          <button class="btn btn-primary" onclick="addDespesaVariavel()" style="width:100%">Salvar Despesa Variável</button>
+        </div>
+        <div class="form-card">
+          <h3>📊 Resumo</h3>
+          <div id="despesasvariaveis-resumo"></div>
+        </div>
+      </div>
+      <div class="dre-container">
+        <div class="dre-header"><h2>Despesas Variáveis — <span id="despesasvariaveis-periodo"></span></h2></div>
+        <table class="folha" id="despesasvariaveis-table">
+          <thead><tr>
+            <th>Descrição</th><th>Categoria</th><th>Unidade</th><th>Data</th><th class="num">Valor</th><th>Status</th><th class="no-print"></th>
+          </tr></thead>
+          <tbody id="despesasvariaveis-body"></tbody>
+          <tfoot id="despesasvariaveis-foot"></tfoot>
+        </table>
+      </div>
+    </div>
+
+    <!-- CUSTO POR MORADOR -->
+    <div class="view" id="view-customorador">
+      <div class="section-header">
+        <h2>Custo por Morador</h2>
+        <div class="flex-gap no-print">
+          <button class="btn btn-primary" onclick="window.print()">🖨️ Imprimir</button>
+        </div>
+      </div>
+      <p style="font-size:13px;color:var(--text-muted);margin-bottom:18px">Rateio simples: despesa total da unidade no período ÷ número de residentes com mensalidade ativa. Todos recebem a mesma fatia de custo.</p>
+      <div class="cards-row" id="customorador-cards" style="margin-bottom:24px"></div>
+      <div class="dre-container">
+        <div class="dre-header"><h2>Custo por Morador — <span id="customorador-periodo"></span></h2></div>
+        <table class="folha" id="customorador-table">
+          <thead><tr>
+            <th>Residente</th><th class="num">Mensalidade</th><th class="num">Custo Rateado</th><th class="num">Margem</th><th class="num">Margem %</th>
+          </tr></thead>
+          <tbody id="customorador-body"></tbody>
+          <tfoot id="customorador-foot"></tfoot>
+        </table>
+      </div>
+    </div>
+
+    <!-- PROJEÇÃO -->
+    <div class="view" id="view-projecao">
+      <div class="section-header">
+        <h2>Projeção Financeira</h2>
+        <div class="flex-gap no-print">
+          <label style="font-size:13px;color:var(--text-muted);display:flex;align-items:center">Projetar</label>
+          <select id="proj-meses" onchange="renderProjecao()" style="border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:13px;background:var(--bg)">
+            <option value="3">3 meses</option><option value="6" selected>6 meses</option><option value="12">12 meses</option>
+          </select>
+          <button class="btn btn-primary btn-sm" onclick="window.print()">🖨️ Imprimir</button>
+        </div>
+      </div>
+      <p style="font-size:13px;color:var(--text-muted);margin-bottom:18px">Projeta repetindo as mensalidades e despesas fixas do período selecionado no topo (já que são recorrentes) e usa a média das despesas variáveis dos últimos meses com dados.</p>
+      <div class="chart-card" style="margin-bottom:18px">
+        <h3>Receita x Despesa Projetada</h3>
+        <div class="chart-wrap"><canvas id="chartProjecao"></canvas></div>
+      </div>
+      <div class="dre-container">
+        <div class="dre-header"><h2>Detalhamento da Projeção</h2></div>
+        <table class="folha" id="projecao-table">
+          <thead><tr>
+            <th>Mês</th><th class="num">Receita Projetada</th><th class="num">Despesa Fixa</th><th class="num">Despesa Variável (média)</th><th class="num">Despesa Total</th><th class="num">Resultado Projetado</th>
+          </tr></thead>
+          <tbody id="projecao-body"></tbody>
+        </table>
+      </div>
+    </div>
+
     <!-- COMPARATIVO -->
     <div class="view" id="view-comparativo">
       <div class="section-header">
@@ -808,7 +918,7 @@ function selUnidade(){ return document.getElementById('sel-unidade')?.value || '
 function filtroUnidade(l){ const u=selUnidade(); return !u || l.unidade===u; }
 
 // ─── NAVIGATION ──────────────────────────────────────────────────────────────
-const TITLES = { dashboard:'Dashboard', dre:'DRE — Demonstração do Resultado', lancamentos:'Lançamentos', comparativo:'Comparativo entre Meses', folha:'Folha de Pagamento', alertas:'Alertas de Limite', contas:'Contas a Pagar', mensalidades:'Mensalidades', despesasfixas:'Despesas Fixas' };
+const TITLES = { dashboard:'Dashboard', dre:'DRE — Demonstração do Resultado', lancamentos:'Lançamentos', comparativo:'Comparativo entre Meses', folha:'Folha de Pagamento', alertas:'Alertas de Limite', contas:'Contas a Pagar', mensalidades:'Mensalidades', despesasfixas:'Despesas Fixas', despesasvariaveis:'Despesas Variáveis', customorador:'Custo por Morador', projecao:'Projeção Financeira' };
 let contas = [];
 function showView(id, el) {
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
@@ -858,6 +968,7 @@ function refresh() {
   renderKPIs(); renderCharts(); renderDRE(); renderLancamentos();
   renderComparativo(); renderFolha(); renderAlertas(); renderContas();
   renderContasCards(); renderSetorDashboard(); renderUnidades(); renderMensalidades(); renderSemana(); renderDespesasFixas(); renderTresJuntos();
+  renderDespesasVariaveis(); renderCustoMorador(); renderProjecao();
 }
 
 // ─── CATS ────────────────────────────────────────────────────────────────────
@@ -876,6 +987,7 @@ document.getElementById('sel-mes').value = nowM;
 document.getElementById('al-cat').innerHTML = '<option value="">Selecione...</option>' +
   CATS.despesa.map(c=>`<option>${c}</option>`).join('');
 document.getElementById('df-cat').innerHTML = CATS.despesa.map(c=>`<option ${c==='Outras Despesas'?'selected':''}>${c}</option>`).join('');
+document.getElementById('dv-cat').innerHTML = CATS.despesa.map(c=>`<option ${c==='Outras Despesas'?'selected':''}>${c}</option>`).join('');
 
 // ─── LANÇAMENTOS ─────────────────────────────────────────────────────────────
 async function addLancamento() {
@@ -1797,6 +1909,184 @@ async function replicarDespesasFixas() {
     renderDespesasFixas();
     alert(`${atuais.length} despesa(s) fixa(s) replicada(s) para ${MESES[nm]}/${na}.`);
   } catch(e) { setSyncStatus('❌ Erro ao replicar', '#d94f4f'); }
+}
+
+// ─── DESPESAS VARIÁVEIS ───────────────────────────────────────────────────────
+async function addDespesaVariavel() {
+  const desc = document.getElementById('dv-desc').value.trim();
+  const val  = moedaValor(document.getElementById('dv-valor'));
+  const cat  = document.getElementById('dv-cat').value;
+  const unidade = document.getElementById('dv-unidade').value;
+  const mes  = +document.getElementById('dv-mes').value;
+  const ano  = +document.getElementById('dv-ano').value;
+  const data = document.getElementById('dv-data').value;
+  if (!desc || !val) { alert('Preencha descrição e valor válidos.'); return; }
+  setSyncStatus('🔄 Salvando...', '#f0a500');
+  try {
+    const doc = await fsAdd('lancamentos', { tipo:'despesa', cat, desc, val, data, mes, ano, unidade, freq:'variavel', pago:false, createdAt: new Date().toISOString() });
+    lancamentos.unshift({ ...doc, id: doc._id, pago:false });
+    setSyncStatus('✅ Salvo', '#1a6b4a');
+    renderDespesasVariaveis();
+    document.getElementById('dv-desc').value = '';
+    document.getElementById('dv-valor').value = '';
+    document.getElementById('dv-data').value = '';
+  } catch(e) { setSyncStatus('❌ Erro ao salvar', '#d94f4f'); alert('Erro: ' + e.message); }
+}
+
+function renderDespesasVariaveis() {
+  const m=selMes(), a=selAno();
+  document.getElementById('despesasvariaveis-periodo').textContent = `${MESES[m]} / ${a}`;
+  const items = lancamentos.filter(l => l.tipo==='despesa' && l.freq==='variavel' && l.mes===m && l.ano===a && filtroUnidade(l))
+    .sort((x,y) => x.desc.localeCompare(y.desc, 'pt-BR'));
+  const body = document.getElementById('despesasvariaveis-body');
+  if (!items.length) {
+    body.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:30px;color:var(--text-muted)">Nenhuma despesa variável cadastrada para este período.</td></tr>';
+    document.getElementById('despesasvariaveis-foot').innerHTML = '';
+    document.getElementById('despesasvariaveis-resumo').innerHTML = '<p style="color:var(--text-muted);font-size:13px">Sem dados para este período.</p>';
+    return;
+  }
+  let total=0, totalPago=0, totalPendente=0;
+  body.innerHTML = items.map(l => {
+    total += l.val; if (l.pago) totalPago += l.val; else totalPendente += l.val;
+    return `<tr>
+      <td>${l.desc}</td><td style="color:var(--text-muted)">${l.cat}</td><td>${l.unidade||''}</td>
+      <td>${l.data ? l.data.split('-').reverse().join('/') : '—'}</td>
+      <td class="num">${fmt(l.val)}</td>
+      <td>${l.pago ? '<span class="tag receita">pago</span>' : '<span class="tag despesa">pendente</span>'}</td>
+      <td class="no-print" style="white-space:nowrap">
+        ${!l.pago ? `<button class="btn btn-primary btn-sm" onclick="pagarLancamento('${l.id}')">✓ Pago</button>` : ''}
+        <button class="btn btn-sm" style="background:#e8f5ef;color:var(--primary)" onclick="openEditLancamento('${l.id}')">✏️</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteLancamento('${l.id}')">✕</button>
+      </td>
+    </tr>`;
+  }).join('');
+  document.getElementById('despesasvariaveis-foot').innerHTML = `<tr>
+    <td colspan="4"><b>TOTAL (${items.length} itens)</b></td>
+    <td class="num" style="color:var(--primary)">${fmt(total)}</td><td colspan="2"></td>
+  </tr>`;
+  document.getElementById('despesasvariaveis-resumo').innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:10px">
+      ${[['💰 Total do Período',total,'#1a6b4a'],['✅ Pago',totalPago,'#28a06e'],['⏳ Pendente',totalPendente,'#f0a500']].map(([l,v,c])=>`
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:var(--bg);border-radius:8px">
+        <span style="font-size:13px">${l}</span>
+        <span style="font-weight:700;color:${c}">${fmt(v)}</span>
+      </div>`).join('')}
+    </div>`;
+}
+
+function exportDespesasVariaveisCSV() {
+  const m=selMes(), a=selAno();
+  const items = lancamentos.filter(l => l.tipo==='despesa' && l.freq==='variavel' && l.mes===m && l.ano===a && filtroUnidade(l));
+  const rows=[['Descrição','Categoria','Unidade','Data','Valor','Status']];
+  items.forEach(l=>rows.push([l.desc,l.cat,l.unidade||'',l.data||'',l.val.toFixed(2),l.pago?'Pago':'Pendente']));
+  const csv=rows.map(r=>r.map(v=>`"${v}"`).join(';')).join('\n');
+  const el=document.createElement('a');
+  el.href='data:text/csv;charset=utf-8,﻿'+encodeURIComponent(csv);
+  el.download=`DespesasVariaveis_VVB_${MESES[selMes()]}_${selAno()}.csv`;
+  el.click();
+}
+
+// ─── CUSTO POR MORADOR ────────────────────────────────────────────────────────
+function renderCustoMorador() {
+  const m=selMes(), a=selAno();
+  document.getElementById('customorador-periodo').textContent = `${MESES[m]} / ${a}`;
+  const residentes = lancamentos.filter(l => l.tipo==='receita' && l.mes===m && l.ano===a && filtroUnidade(l))
+    .sort((x,y) => x.desc.localeCompare(y.desc, 'pt-BR'));
+  const despesaTotal = lancamentos.filter(l => l.tipo==='despesa' && l.mes===m && l.ano===a && filtroUnidade(l)).reduce((s,l)=>s+l.val,0);
+  const n = residentes.length;
+  const custoRateado = n ? despesaTotal / n : 0;
+  const receitaTotal = residentes.reduce((s,l)=>s+l.val,0);
+  const margemTotal = receitaTotal - despesaTotal;
+
+  document.getElementById('customorador-cards').innerHTML = [
+    {label:'Residentes', val:n, cor:'#1a6b4a', fmt:v=>v, icon:'🧓'},
+    {label:'Receita Total', val:receitaTotal, cor:'#28a06e', fmt:fmt, icon:'💰'},
+    {label:'Despesa Total (Unidade)', val:despesaTotal, cor:'#d94f4f', fmt:fmt, icon:'📉'},
+    {label:'Custo Médio / Residente', val:custoRateado, cor:'#f0a500', fmt:fmt, icon:'⚖️'},
+    {label:'Margem Total', val:margemTotal, cor: margemTotal>=0?'#1a6b4a':'#d94f4f', fmt:fmt, icon:'📈'},
+  ].map(k=>`
+    <div class="kpi-card">
+      <div class="accent-bar" style="background:${k.cor}"></div>
+      <div class="label">${k.icon} ${k.label}</div>
+      <div class="value" style="color:${k.cor}">${k.fmt(k.val)}</div>
+    </div>`).join('');
+
+  const body = document.getElementById('customorador-body');
+  if (!n) {
+    body.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:30px;color:var(--text-muted)">Nenhuma mensalidade cadastrada para este período.</td></tr>';
+    document.getElementById('customorador-foot').innerHTML = '';
+    return;
+  }
+  body.innerHTML = residentes.map(l => {
+    const margem = l.val - custoRateado;
+    const margemPct = l.val ? (margem/l.val*100) : 0;
+    const cls = margem>=0 ? 'pos' : 'neg';
+    return `<tr>
+      <td>${l.desc}</td>
+      <td class="num">${fmt(l.val)}</td>
+      <td class="num">${fmt(custoRateado)}</td>
+      <td class="num ${cls}">${fmt(margem)}</td>
+      <td class="num ${cls}">${margemPct.toFixed(1)}%</td>
+    </tr>`;
+  }).join('');
+  document.getElementById('customorador-foot').innerHTML = `<tr>
+    <td><b>TOTAL (${n} residentes)</b></td>
+    <td class="num">${fmt(receitaTotal)}</td>
+    <td class="num">${fmt(despesaTotal)}</td>
+    <td class="num" style="color:${margemTotal>=0?'var(--primary)':'var(--danger)'}">${fmt(margemTotal)}</td>
+    <td class="num">${receitaTotal?(margemTotal/receitaTotal*100).toFixed(1):'0.0'}%</td>
+  </tr>`;
+}
+
+// ─── PROJEÇÃO ─────────────────────────────────────────────────────────────────
+let projecaoChart;
+function renderProjecao() {
+  const m=selMes(), a=selAno();
+  const nMeses = +(document.getElementById('proj-meses')?.value || 6);
+
+  // média de despesa variável dos últimos até 3 meses com dados (olhando pra trás a partir do período atual)
+  const historicoVar = [];
+  let hm=m, ha=a;
+  for (let i=0; i<6 && historicoVar.length<3; i++) {
+    const v = lancamentos.filter(l=>l.tipo==='despesa'&&l.freq==='variavel'&&l.mes===hm&&l.ano===ha&&filtroUnidade(l)).reduce((s,l)=>s+l.val,0);
+    if (v>0) historicoVar.push(v);
+    hm--; if (hm===0) { hm=12; ha--; }
+  }
+  const mediaVar = historicoVar.length ? historicoVar.reduce((s,v)=>s+v,0)/historicoVar.length : 0;
+
+  const receitaBase = lancamentos.filter(l=>l.tipo==='receita'&&l.mes===m&&l.ano===a&&filtroUnidade(l)).reduce((s,l)=>s+l.val,0);
+  const despFixaBase = lancamentos.filter(l=>l.tipo==='despesa'&&l.freq==='fixa'&&l.mes===m&&l.ano===a&&filtroUnidade(l)).reduce((s,l)=>s+l.val,0);
+
+  const linhas = [];
+  let pm=m, pa=a;
+  for (let i=0; i<nMeses; i++) {
+    pm++; if (pm>12) { pm=1; pa++; }
+    const despTotal = despFixaBase + mediaVar;
+    linhas.push({ mes:pm, ano:pa, receita:receitaBase, despFixa:despFixaBase, despVar:mediaVar, despTotal, resultado:receitaBase-despTotal });
+  }
+
+  if (projecaoChart) projecaoChart.destroy();
+  const canv = document.getElementById('chartProjecao');
+  if (canv) {
+    projecaoChart = new Chart(canv, {
+      type: 'bar',
+      data: { labels: linhas.map(l=>`${MESES[l.mes].slice(0,3)}/${String(l.ano).slice(2)}`), datasets:[
+        { label:'Receita Projetada', data: linhas.map(l=>l.receita), backgroundColor:'#28a06e88', borderColor:'#28a06e', borderWidth:2 },
+        { label:'Despesa Projetada', data: linhas.map(l=>l.despTotal), backgroundColor:'#d94f4f88', borderColor:'#d94f4f', borderWidth:2 },
+      ] },
+      options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{position:'top'}}, scales:{y:{ticks:{callback:v=>'R$'+v.toLocaleString('pt-BR')}}} }
+    });
+  }
+
+  document.getElementById('projecao-body').innerHTML = linhas.map(l => `
+    <tr>
+      <td>${MESES[l.mes]} / ${l.ano}</td>
+      <td class="num pos">${fmt(l.receita)}</td>
+      <td class="num neg">${fmt(l.despFixa)}</td>
+      <td class="num neg">${fmt(l.despVar)}</td>
+      <td class="num neg">${fmt(l.despTotal)}</td>
+      <td class="num" style="font-weight:700;color:${l.resultado>=0?'var(--primary)':'var(--danger)'}">${fmt(l.resultado)}</td>
+    </tr>`).join('');
 }
 
 // ─── ALERTAS ─────────────────────────────────────────────────────────────────
