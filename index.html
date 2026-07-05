@@ -237,6 +237,7 @@ async function fsUpdate(col, id, data) {
     <div class="nav-item" onclick="showView('folha',this)"><span class="icon">👥</span> Folha de Pagamento</div>
     <div class="nav-item" onclick="showView('alertas',this)"><span class="icon">🔔</span> Alertas de Limite</div>
     <div class="nav-item" onclick="showView('contas',this)"><span class="icon">📅</span> Contas a Pagar</div>
+    <div class="nav-item" onclick="showView('mensalidades',this)"><span class="icon">💰</span> Mensalidades</div>
   </div>
 </nav>
 
@@ -435,6 +436,66 @@ async function fsUpdate(col, id, data) {
       <div class="dre-container">
         <div class="dre-header"><h2>Contas Pendentes</h2></div>
         <div id="contas-list"><div class="empty-state">Nenhuma conta cadastrada.</div></div>
+      </div>
+    </div>
+
+    <!-- MENSALIDADES -->
+    <div class="view" id="view-mensalidades">
+      <div class="section-header">
+        <h2>Mensalidades dos Residentes</h2>
+        <div class="flex-gap no-print">
+          <button class="btn btn-accent" onclick="exportMensalidadesCSV()">⬇️ Exportar CSV</button>
+          <button class="btn btn-primary" onclick="window.print()">🖨️ Imprimir</button>
+        </div>
+      </div>
+      <div class="two-col" style="margin-bottom:24px">
+        <div class="form-card">
+          <h3>➕ Cadastrar Mensalidade</h3>
+          <div class="form-row"><label>Nome do Residente</label><input type="text" id="ms-nome" placeholder="Ex: Maria Silva"></div>
+          <div class="form-row"><label>Valor (R$)</label><input type="text" inputmode="numeric" id="ms-valor" oninput="maskMoeda(this)" placeholder="0,00"></div>
+          <div class="form-row"><label>Categoria</label>
+            <select id="ms-cat">
+              <option value="Mensalidades — Particular">Particular</option>
+              <option value="Mensalidades — Plano de Saúde">Plano de Saúde</option>
+              <option value="Outras Receitas">Outras (ex: Prefeitura)</option>
+            </select>
+          </div>
+          <div class="form-row"><label>Unidade</label>
+            <select id="ms-unidade">
+              <option value="Unidade I">🏠 Unidade I</option>
+              <option value="Unidade II">🏠 Unidade II</option>
+            </select>
+          </div>
+          <div class="form-row"><label>Mês de Referência</label>
+            <select id="ms-mes">
+              <option value="1">Janeiro</option><option value="2">Fevereiro</option><option value="3">Março</option>
+              <option value="4">Abril</option><option value="5">Maio</option><option value="6">Junho</option>
+              <option value="7">Julho</option><option value="8">Agosto</option><option value="9">Setembro</option>
+              <option value="10">Outubro</option><option value="11">Novembro</option><option value="12">Dezembro</option>
+            </select>
+          </div>
+          <div class="form-row"><label>Ano de Referência</label>
+            <select id="ms-ano">
+              <option value="2024">2024</option><option value="2025">2025</option>
+              <option value="2026" selected>2026</option><option value="2027">2027</option>
+            </select>
+          </div>
+          <button class="btn btn-primary" onclick="addMensalidade()" style="width:100%">Salvar Mensalidade</button>
+        </div>
+        <div class="form-card">
+          <h3>📊 Resumo</h3>
+          <div id="mensalidades-resumo"></div>
+        </div>
+      </div>
+      <div class="dre-container">
+        <div class="dre-header"><h2>Mensalidades — <span id="mensalidades-periodo"></span></h2></div>
+        <table class="folha" id="mensalidades-table">
+          <thead><tr>
+            <th>Residente</th><th>Categoria</th><th>Unidade</th><th class="num">Valor</th><th>Status</th><th class="no-print"></th>
+          </tr></thead>
+          <tbody id="mensalidades-body"></tbody>
+          <tfoot id="mensalidades-foot"></tfoot>
+        </table>
       </div>
     </div>
 
@@ -650,7 +711,7 @@ function selUnidade(){ return document.getElementById('sel-unidade')?.value || '
 function filtroUnidade(l){ const u=selUnidade(); return !u || l.unidade===u; }
 
 // ─── NAVIGATION ──────────────────────────────────────────────────────────────
-const TITLES = { dashboard:'Dashboard', dre:'DRE — Demonstração do Resultado', lancamentos:'Lançamentos', comparativo:'Comparativo entre Meses', folha:'Folha de Pagamento', alertas:'Alertas de Limite', contas:'Contas a Pagar' };
+const TITLES = { dashboard:'Dashboard', dre:'DRE — Demonstração do Resultado', lancamentos:'Lançamentos', comparativo:'Comparativo entre Meses', folha:'Folha de Pagamento', alertas:'Alertas de Limite', contas:'Contas a Pagar', mensalidades:'Mensalidades' };
 let contas = [];
 function showView(id, el) {
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
@@ -699,7 +760,7 @@ function renderUnidades() {
 function refresh() {
   renderKPIs(); renderCharts(); renderDRE(); renderLancamentos();
   renderComparativo(); renderFolha(); renderAlertas(); renderContas();
-  renderContasCards(); renderSetorDashboard(); renderUnidades();
+  renderContasCards(); renderSetorDashboard(); renderUnidades(); renderMensalidades();
 }
 
 // ─── CATS ────────────────────────────────────────────────────────────────────
@@ -1211,6 +1272,76 @@ function exportFolhaCSV() {
   const el=document.createElement('a');
   el.href='data:text/csv;charset=utf-8,﻿'+encodeURIComponent(csv);
   el.download=`Folha_VVB_${MESES[selMes()]}_${selAno()}.csv`;
+  el.click();
+}
+
+// ─── MENSALIDADES ────────────────────────────────────────────────────────────
+async function addMensalidade() {
+  const desc = document.getElementById('ms-nome').value.trim();
+  const val  = moedaValor(document.getElementById('ms-valor'));
+  const cat  = document.getElementById('ms-cat').value;
+  const unidade = document.getElementById('ms-unidade').value;
+  const mes  = +document.getElementById('ms-mes').value;
+  const ano  = +document.getElementById('ms-ano').value;
+  if (!desc || !val) { alert('Preencha nome e valor válidos.'); return; }
+  setSyncStatus('🔄 Salvando...', '#f0a500');
+  try {
+    const doc = await fsAdd('lancamentos', { tipo:'receita', cat, desc, val, data:'', mes, ano, unidade, freq:'fixa', pago:false, createdAt: new Date().toISOString() });
+    lancamentos.unshift({ ...doc, id: doc._id, pago:false });
+    setSyncStatus('✅ Salvo', '#1a6b4a');
+    renderMensalidades();
+    document.getElementById('ms-nome').value = '';
+    document.getElementById('ms-valor').value = '';
+  } catch(e) { setSyncStatus('❌ Erro ao salvar', '#d94f4f'); alert('Erro: ' + e.message); }
+}
+
+function renderMensalidades() {
+  const m=selMes(), a=selAno();
+  document.getElementById('mensalidades-periodo').textContent = `${MESES[m]} / ${a}`;
+  const items = lancamentos.filter(l => l.tipo==='receita' && l.mes===m && l.ano===a && filtroUnidade(l));
+  const body = document.getElementById('mensalidades-body');
+  if (!items.length) {
+    body.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--text-muted)">Nenhuma mensalidade cadastrada para este período.</td></tr>';
+    document.getElementById('mensalidades-foot').innerHTML = '';
+    document.getElementById('mensalidades-resumo').innerHTML = '<p style="color:var(--text-muted);font-size:13px">Sem dados para este período.</p>';
+    return;
+  }
+  let total=0, totalPago=0, totalPendente=0;
+  body.innerHTML = items.map(l => {
+    total += l.val; if (l.pago) totalPago += l.val; else totalPendente += l.val;
+    return `<tr>
+      <td>${l.desc}</td><td style="color:var(--text-muted)">${l.cat}</td><td>${l.unidade||''}</td>
+      <td class="num">${fmt(l.val)}</td>
+      <td>${l.pago ? '<span class="tag receita">pago</span>' : '<span class="tag despesa">pendente</span>'}</td>
+      <td class="no-print" style="white-space:nowrap">
+        ${!l.pago ? `<button class="btn btn-primary btn-sm" onclick="pagarLancamento('${l.id}')">✓ Pago</button>` : ''}
+        <button class="btn btn-danger btn-sm" onclick="deleteLancamento('${l.id}')">✕</button>
+      </td>
+    </tr>`;
+  }).join('');
+  document.getElementById('mensalidades-foot').innerHTML = `<tr>
+    <td colspan="3"><b>TOTAL (${items.length} residentes)</b></td>
+    <td class="num" style="color:var(--primary)">${fmt(total)}</td><td colspan="2"></td>
+  </tr>`;
+  document.getElementById('mensalidades-resumo').innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:10px">
+      ${[['💰 Total do Período',total,'#1a6b4a'],['✅ Recebido',totalPago,'#28a06e'],['⏳ Pendente',totalPendente,'#f0a500']].map(([l,v,c])=>`
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:var(--bg);border-radius:8px">
+        <span style="font-size:13px">${l}</span>
+        <span style="font-weight:700;color:${c}">${fmt(v)}</span>
+      </div>`).join('')}
+    </div>`;
+}
+
+function exportMensalidadesCSV() {
+  const m=selMes(), a=selAno();
+  const items = lancamentos.filter(l => l.tipo==='receita' && l.mes===m && l.ano===a && filtroUnidade(l));
+  const rows=[['Residente','Categoria','Unidade','Valor','Status']];
+  items.forEach(l=>rows.push([l.desc,l.cat,l.unidade||'',l.val.toFixed(2),l.pago?'Pago':'Pendente']));
+  const csv=rows.map(r=>r.map(v=>`"${v}"`).join(';')).join('\n');
+  const el=document.createElement('a');
+  el.href='data:text/csv;charset=utf-8,﻿'+encodeURIComponent(csv);
+  el.download=`Mensalidades_VVB_${MESES[selMes()]}_${selAno()}.csv`;
   el.click();
 }
 
