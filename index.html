@@ -614,7 +614,7 @@ async function loadAllData() {
     [lancamentos, funcionarios, alertas, contas] = await Promise.all([
       fsList('lancamentos'), fsList('funcionarios'), fsList('alertas'), fsList('contas')
     ]);
-    lancamentos  = lancamentos.map(l  => ({...l,  id: l._id}));
+    lancamentos  = lancamentos.map(l  => ({...l,  id: l._id, pago: l.pago === true}));
     funcionarios = funcionarios.map(f => ({...f,  id: f._id}));
     alertas      = alertas.map(a      => ({...a}));
     contas       = contas.map(c       => ({...c,  id: c._id, pago: c.pago === true}));
@@ -727,8 +727,8 @@ async function addLancamento() {
   const pagamento  = tipo === 'despesa' ? document.getElementById('f-pagamento').value : '';
   setSyncStatus('🔄 Salvando...', '#f0a500');
   try {
-    const doc = await fsAdd('lancamentos', { tipo, cat, desc, val, data, mes, ano, unidade, createdAt: new Date().toISOString() });
-    lancamentos.unshift({ ...doc, id: doc._id });
+    const doc = await fsAdd('lancamentos', { tipo, cat, desc, val, data, mes, ano, unidade, pago: false, createdAt: new Date().toISOString() });
+    lancamentos.unshift({ ...doc, id: doc._id, pago: false });
     if (tipo === 'despesa' && vencimento) {
       for (let p = 0; p < parcelas; p++) {
         const d = new Date(vencimento + 'T12:00:00');
@@ -747,12 +747,24 @@ async function addLancamento() {
   } catch(e) { setSyncStatus('❌ Erro ao salvar', '#d94f4f'); alert('Erro: ' + e.message); }
 }
 
+async function pagarLancamento(id) {
+  const item = lancamentos.find(l => l.id === id);
+  if (!item) return;
+  setSyncStatus('🔄 Salvando...', '#f0a500');
+  try {
+    if (item._id) await fsUpdate('lancamentos', item._id, { pago: true });
+    item.pago = true;
+    setSyncStatus('✅ Salvo', '#1a6b4a');
+    renderLancamentos();
+  } catch(e) { setSyncStatus('❌ Erro', '#d94f4f'); }
+}
+
 async function deleteLancamento(id) {
   if (!confirm('Excluir este lançamento?')) return;
   const item = lancamentos.find(l => l.id === id);
   setSyncStatus('🔄 Excluindo...', '#f0a500');
   try {
-    if (item && item._id) await fsDelete('lancamentos/' + item._id);
+    if (item && item._id) await fsDelete('lancamentos', item._id);
     lancamentos = lancamentos.filter(l => l.id !== id);
     setSyncStatus('✅ Excluído', '#1a6b4a');
     refresh();
@@ -772,11 +784,12 @@ function renderLancamentos() {
   el.innerHTML = items.map(l => `
     <div class="lancamento-item">
       <div>
-        <div class="desc">${l.desc} <span class="tag ${l.tipo}">${l.tipo}</span></div>
+        <div class="desc">${l.desc} <span class="tag ${l.tipo}">${l.tipo}</span> ${l.pago ? '<span class="tag receita">pago</span>' : ''}</div>
         <div class="cat">${l.cat} · ${l.unidade||''} · ${MESES[l.mes]}/${l.ano} · ${l.data||''}</div>
       </div>
       <div style="display:flex;align-items:center;gap:12px">
         <div class="val ${l.tipo}">${l.tipo==='receita'?'+':'-'} ${fmt(l.val)}</div>
+        ${!l.pago ? `<button class="btn btn-primary btn-sm no-print" onclick="pagarLancamento('${l.id}')">✓ Pago</button>` : ''}
         <button class="btn btn-danger btn-sm no-print" onclick="deleteLancamento('${l.id}')">✕</button>
       </div>
     </div>`).join('');
@@ -947,9 +960,9 @@ async function confirmImport() {
       const doc = await fsAdd('lancamentos', {
         tipo: r.tipo, cat: r.cat, desc: r.desc, val: r.valor,
         data: r.data, mes: r.mes, ano: r.ano, unidade: r.unidade,
-        createdAt: new Date().toISOString(),
+        pago: false, createdAt: new Date().toISOString(),
       });
-      lancamentos.unshift({ ...doc, id: doc._id });
+      lancamentos.unshift({ ...doc, id: doc._id, pago: false });
       ok++;
     } catch (e) { fail++; }
   }
@@ -1136,7 +1149,7 @@ async function deleteFuncionario(id) {
   const item = funcionarios.find(f => f.id === id);
   setSyncStatus('🔄 Excluindo...', '#f0a500');
   try {
-    if (item && item._id) await fsDelete('funcionarios/' + item._id);
+    if (item && item._id) await fsDelete('funcionarios', item._id);
     funcionarios = funcionarios.filter(f => f.id !== id);
     setSyncStatus('✅ Excluído', '#1a6b4a');
     renderFolha();
@@ -1197,7 +1210,7 @@ async function addAlerta() {
   try {
     // remove alerta existente da mesma categoria no Firestore
     const existing = alertas.find(a => a.cat === cat);
-    if (existing && existing._id) await fsDelete('alertas/' + existing._id);
+    if (existing && existing._id) await fsDelete('alertas', existing._id);
     alertas = alertas.filter(a => a.cat !== cat);
     const doc = await fsAdd('alertas', {cat, limite: val});
     alertas.push({...doc});
@@ -1211,7 +1224,7 @@ async function deleteAlerta(cat) {
   const item = alertas.find(a => a.cat === cat);
   setSyncStatus('🔄 Excluindo...', '#f0a500');
   try {
-    if (item && item._id) await fsDelete('alertas/' + item._id);
+    if (item && item._id) await fsDelete('alertas', item._id);
     alertas = alertas.filter(a => a.cat !== cat);
     setSyncStatus('✅ Excluído', '#1a6b4a');
     renderAlertas();
@@ -1329,7 +1342,7 @@ async function pagarConta(id) {
   if (!c) return;
   setSyncStatus('🔄 Salvando...', '#f0a500');
   try {
-    if (c._id) await fsUpdate('contas/' + c._id, {pago: true});
+    if (c._id) await fsUpdate('contas', c._id, {pago: true});
     c.pago = true;
     setSyncStatus('✅ Pago', '#1a6b4a');
     renderContas(); renderKPIs();
@@ -1340,7 +1353,7 @@ async function deleteConta(id) {
   const item = contas.find(c => c.id === id);
   setSyncStatus('🔄 Excluindo...', '#f0a500');
   try {
-    if (item && item._id) await fsDelete('contas/' + item._id);
+    if (item && item._id) await fsDelete('contas', item._id);
     contas = contas.filter(c => c.id !== id);
     setSyncStatus('✅ Excluído', '#1a6b4a');
     renderContas();
