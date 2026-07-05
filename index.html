@@ -624,6 +624,18 @@ async function fsUpdate(col, id, data) {
   </div>
 </div>
 
+<!-- MODAL EDITAR RÁPIDO -->
+<div id="quick-edit-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;align-items:center;justify-content:center;padding:20px">
+  <div style="background:#fff;border-radius:12px;max-width:440px;width:100%;max-height:88vh;overflow-y:auto;padding:24px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <h2 id="quick-edit-title" style="font-size:16px;color:var(--primary)">Editar</h2>
+      <button class="btn btn-sm" style="background:#eee" onclick="closeQuickEdit()">✕ Fechar</button>
+    </div>
+    <div id="quick-edit-fields"></div>
+    <button class="btn btn-primary" style="width:100%;margin-top:10px" onclick="saveQuickEdit()">💾 Salvar Alterações</button>
+  </div>
+</div>
+
 <!-- MODAL IMPORTAR PLANILHA -->
 <div id="import-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;align-items:center;justify-content:center;padding:20px">
   <div style="background:#fff;border-radius:12px;max-width:900px;width:100%;max-height:88vh;overflow-y:auto;padding:24px">
@@ -717,6 +729,12 @@ function maskMoeda(el) {
   el.dataset.raw = intPart.replace(/\./g, '') + '.' + decPart;
 }
 function moedaValor(el) { return el && el.value.trim() && el.dataset.raw ? parseFloat(el.dataset.raw) : 0; }
+function setMoedaValue(el, val) {
+  const v = Number(val) || 0;
+  const [intPart, decPart] = v.toFixed(2).split('.');
+  el.value = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, '.') + ',' + decPart;
+  el.dataset.raw = v.toFixed(2);
+}
 function selMes(){ return +document.getElementById('sel-mes').value; }
 function selAno(){ return +document.getElementById('sel-ano').value; }
 function selUnidade(){ return document.getElementById('sel-unidade')?.value || ''; }
@@ -828,6 +846,114 @@ async function addLancamento() {
   } catch(e) { setSyncStatus('❌ Erro ao salvar', '#d94f4f'); alert('Erro: ' + e.message); }
 }
 
+// ─── EDITAR RÁPIDO ────────────────────────────────────────────────────────────
+let quickEditContext = null;
+
+function closeQuickEdit() { document.getElementById('quick-edit-modal').style.display = 'none'; quickEditContext = null; }
+
+function openEditLancamento(id) {
+  const l = lancamentos.find(x => x.id === id);
+  if (!l) return;
+  quickEditContext = { type: 'lancamentos', id: l._id, obj: l };
+  document.getElementById('quick-edit-title').textContent = `Editar ${l.tipo === 'receita' ? 'Receita' : 'Despesa'}`;
+  const catOptions = CATS[l.tipo].map(c => `<option ${c === l.cat ? 'selected' : ''}>${c}</option>`).join('');
+  document.getElementById('quick-edit-fields').innerHTML = `
+    <div class="form-row"><label>Descrição</label><input type="text" id="qe-desc"></div>
+    <div class="form-row"><label>Valor (R$)</label><input type="text" inputmode="numeric" id="qe-valor" oninput="maskMoeda(this)"></div>
+    <div class="form-row"><label>Categoria</label><select id="qe-cat">${catOptions}</select></div>
+    <div class="form-row"><label>Data (opcional)</label><input type="date" id="qe-data"></div>
+    <div class="form-row"><label>Unidade</label><select id="qe-unidade">
+      ${['Unidade I','Unidade II','Pessoal'].map(u => `<option ${u === l.unidade ? 'selected' : ''}>${u}</option>`).join('')}
+    </select></div>
+    <div class="form-row"><label>Mês de Referência</label><select id="qe-mes">
+      ${MESES.slice(1).map((nome,i) => `<option value="${i+1}" ${i+1===l.mes?'selected':''}>${nome}</option>`).join('')}
+    </select></div>
+    <div class="form-row"><label>Ano de Referência</label><select id="qe-ano">
+      ${[2024,2025,2026,2027].map(y => `<option ${y===l.ano?'selected':''}>${y}</option>`).join('')}
+    </select></div>`;
+  document.getElementById('qe-desc').value = l.desc;
+  document.getElementById('qe-data').value = l.data || '';
+  setMoedaValue(document.getElementById('qe-valor'), l.val);
+  document.getElementById('quick-edit-modal').style.display = 'flex';
+}
+
+function openEditFuncionario(id) {
+  const f = funcionarios.find(x => x.id === id);
+  if (!f) return;
+  quickEditContext = { type: 'funcionarios', id: f._id, obj: f };
+  document.getElementById('quick-edit-title').textContent = 'Editar Funcionário';
+  document.getElementById('quick-edit-fields').innerHTML = `
+    <div class="form-row"><label>Nome</label><input type="text" id="qe-nome"></div>
+    <div class="form-row"><label>Cargo</label><input type="text" id="qe-cargo"></div>
+    <div class="form-row"><label>Salário Base (R$)</label><input type="text" inputmode="numeric" id="qe-sal" oninput="maskMoeda(this)"></div>
+    <div class="form-row"><label>Bônus (R$)</label><input type="text" inputmode="numeric" id="qe-bonus" oninput="maskMoeda(this)"></div>`;
+  document.getElementById('qe-nome').value = f.nome;
+  document.getElementById('qe-cargo').value = f.cargo || '';
+  setMoedaValue(document.getElementById('qe-sal'), f.sal);
+  setMoedaValue(document.getElementById('qe-bonus'), f.bonus || 0);
+  document.getElementById('quick-edit-modal').style.display = 'flex';
+}
+
+function openEditConta(id) {
+  const c = contas.find(x => x.id === id);
+  if (!c) return;
+  quickEditContext = { type: 'contas', id: c._id, obj: c };
+  document.getElementById('quick-edit-title').textContent = 'Editar Conta a Pagar';
+  const catOptions = CATS.despesa.map(cat => `<option ${cat === c.cat ? 'selected' : ''}>${cat}</option>`).join('');
+  document.getElementById('quick-edit-fields').innerHTML = `
+    <div class="form-row"><label>Descrição</label><input type="text" id="qe-desc"></div>
+    <div class="form-row"><label>Valor (R$)</label><input type="text" inputmode="numeric" id="qe-valor" oninput="maskMoeda(this)"></div>
+    <div class="form-row"><label>Categoria</label><select id="qe-cat">${catOptions}</select></div>
+    <div class="form-row"><label>Data de Vencimento</label><input type="date" id="qe-venc"></div>
+    <div class="form-row"><label>Unidade</label><select id="qe-unidade">
+      ${['Unidade I','Unidade II','Pessoal'].map(u => `<option ${u === c.unidade ? 'selected' : ''}>${u}</option>`).join('')}
+    </select></div>`;
+  document.getElementById('qe-desc').value = c.desc;
+  document.getElementById('qe-venc').value = c.venc || '';
+  setMoedaValue(document.getElementById('qe-valor'), c.val);
+  document.getElementById('quick-edit-modal').style.display = 'flex';
+}
+
+async function saveQuickEdit() {
+  if (!quickEditContext) return;
+  const { type, id, obj } = quickEditContext;
+  setSyncStatus('🔄 Salvando...', '#f0a500');
+  try {
+    if (type === 'lancamentos') {
+      const desc = document.getElementById('qe-desc').value.trim();
+      const val = moedaValor(document.getElementById('qe-valor'));
+      const cat = document.getElementById('qe-cat').value;
+      const data = document.getElementById('qe-data').value;
+      const unidade = document.getElementById('qe-unidade').value;
+      const mes = +document.getElementById('qe-mes').value;
+      const ano = +document.getElementById('qe-ano').value;
+      if (!desc || !val) { alert('Preencha descrição e valor válidos.'); return; }
+      await fsUpdate('lancamentos', id, { desc, val, cat, data, unidade, mes, ano });
+      Object.assign(obj, { desc, val, cat, data, unidade, mes, ano });
+    } else if (type === 'funcionarios') {
+      const nome = document.getElementById('qe-nome').value.trim();
+      const cargo = document.getElementById('qe-cargo').value.trim();
+      const sal = moedaValor(document.getElementById('qe-sal'));
+      const bonus = moedaValor(document.getElementById('qe-bonus'));
+      if (!nome || !sal) { alert('Preencha nome e salário válidos.'); return; }
+      await fsUpdate('funcionarios', id, { nome, cargo, sal, bonus });
+      Object.assign(obj, { nome, cargo, sal, bonus });
+    } else if (type === 'contas') {
+      const desc = document.getElementById('qe-desc').value.trim();
+      const val = moedaValor(document.getElementById('qe-valor'));
+      const cat = document.getElementById('qe-cat').value;
+      const venc = document.getElementById('qe-venc').value;
+      const unidade = document.getElementById('qe-unidade').value;
+      if (!desc || !val || !venc) { alert('Preencha descrição, valor e vencimento válidos.'); return; }
+      await fsUpdate('contas', id, { desc, val, cat, venc, unidade });
+      Object.assign(obj, { desc, val, cat, venc, unidade });
+    }
+    setSyncStatus('✅ Salvo', '#1a6b4a');
+    closeQuickEdit();
+    refresh();
+  } catch(e) { setSyncStatus('❌ Erro ao salvar', '#d94f4f'); alert('Erro: ' + e.message); }
+}
+
 async function pagarLancamento(id) {
   const item = lancamentos.find(l => l.id === id);
   if (!item) return;
@@ -873,6 +999,7 @@ function renderLancamentos() {
       <div style="display:flex;align-items:center;gap:12px">
         <div class="val ${l.tipo}">${l.tipo==='receita'?'+':'-'} ${fmt(l.val)}</div>
         ${!l.pago ? `<button class="btn btn-primary btn-sm no-print" onclick="pagarLancamento('${l.id}')">✓ Pago</button>` : ''}
+        <button class="btn btn-sm no-print" style="background:#e8f5ef;color:var(--primary)" onclick="openEditLancamento('${l.id}')">✏️</button>
         <button class="btn btn-danger btn-sm no-print" onclick="deleteLancamento('${l.id}')">✕</button>
       </div>
     </div>`).join('');
@@ -1294,6 +1421,7 @@ function renderFolha() {
       <td>${f.pago ? '<span class="tag receita">pago</span>' : '<span class="tag despesa">pendente</span>'}</td>
       <td class="no-print" style="white-space:nowrap">
         ${!f.pago ? `<button class="btn btn-primary btn-sm" onclick="pagarFuncionario('${f.id}')">✓ Pago</button>` : ''}
+        <button class="btn btn-sm" style="background:#e8f5ef;color:var(--primary)" onclick="openEditFuncionario('${f.id}')">✏️</button>
         <button class="btn btn-danger btn-sm" onclick="deleteFuncionario('${f.id}')">✕</button>
       </td>
     </tr>`;}).join('');
@@ -1369,6 +1497,7 @@ function renderMensalidades() {
       <td>${l.pago ? '<span class="tag receita">pago</span>' : '<span class="tag despesa">pendente</span>'}</td>
       <td class="no-print" style="white-space:nowrap">
         ${!l.pago ? `<button class="btn btn-primary btn-sm" onclick="pagarLancamento('${l.id}')">✓ Pago</button>` : ''}
+        <button class="btn btn-sm" style="background:#e8f5ef;color:var(--primary)" onclick="openEditLancamento('${l.id}')">✏️</button>
         <button class="btn btn-danger btn-sm" onclick="deleteLancamento('${l.id}')">✕</button>
       </td>
     </tr>`;
@@ -1669,6 +1798,7 @@ function renderContas() {
       <div style="display:flex;align-items:center;gap:10px">
         ${badge}
         ${!c.pago ? `<button class="btn btn-primary btn-sm no-print" onclick="pagarConta('${c.id}')">✓ Pago</button>` : ''}
+        <button class="btn btn-sm no-print" style="background:#e8f5ef;color:var(--primary)" onclick="openEditConta('${c.id}')">✏️</button>
         <button class="btn btn-danger btn-sm no-print" onclick="deleteConta('${c.id}')">✕</button>
       </div>
     </div>`;
