@@ -1479,7 +1479,8 @@ async function addMensalidade() {
 function renderMensalidades() {
   const m=selMes(), a=selAno();
   document.getElementById('mensalidades-periodo').textContent = `${MESES[m]} / ${a}`;
-  const items = lancamentos.filter(l => l.tipo==='receita' && l.mes===m && l.ano===a && filtroUnidade(l));
+  const items = lancamentos.filter(l => l.tipo==='receita' && l.mes===m && l.ano===a && filtroUnidade(l))
+    .sort((x,y) => x.desc.localeCompare(y.desc, 'pt-BR'));
   const body = document.getElementById('mensalidades-body');
   if (!items.length) {
     body.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:30px;color:var(--text-muted)">Nenhuma mensalidade cadastrada para este período.</td></tr>';
