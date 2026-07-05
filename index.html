@@ -451,6 +451,7 @@ async function fsUpdate(col, id, data) {
       <div class="section-header">
         <h2>Mensalidades dos Residentes</h2>
         <div class="flex-gap no-print">
+          <button class="btn btn-accent" onclick="replicarMensalidades()">📋 Replicar p/ Próximo Mês</button>
           <button class="btn btn-accent" onclick="exportMensalidadesCSV()">⬇️ Exportar CSV</button>
           <button class="btn btn-primary" onclick="window.print()">🖨️ Imprimir</button>
         </div>
@@ -574,12 +575,15 @@ async function fsUpdate(col, id, data) {
         </div>
       </div>
       <div class="dre-container">
-        <div class="dre-header"><h2>Folha de Pagamento — <span id="folha-periodo"></span></h2></div>
+        <div class="dre-header">
+          <h2>Folha de Pagamento — <span id="folha-periodo"></span></h2>
+          <button class="btn btn-accent btn-sm no-print" onclick="replicarFolha()">📋 Replicar p/ Próximo Mês</button>
+        </div>
         <table class="folha" id="folha-table">
           <thead><tr>
             <th>Nome</th><th>Cargo</th><th class="num">Salário Base</th>
             <th class="num">Bônus</th>
-            <th class="num">Custo Total</th><th class="no-print"></th>
+            <th class="num">Custo Total</th><th>Status</th><th class="no-print"></th>
           </tr></thead>
           <tbody id="folha-body"></tbody>
           <tfoot id="folha-foot"></tfoot>
@@ -691,7 +695,7 @@ async function loadAllData() {
       fsList('lancamentos'), fsList('funcionarios'), fsList('alertas'), fsList('contas')
     ]);
     lancamentos  = lancamentos.filter(l => l.tipo && l.desc && typeof l.val === 'number').map(l  => ({...l,  id: l._id, pago: l.pago === true, freq: l.freq || 'variavel'}));
-    funcionarios = funcionarios.filter(f => f.nome).map(f => ({...f,  id: f._id}));
+    funcionarios = funcionarios.filter(f => f.nome).map(f => ({...f,  id: f._id, pago: f.pago === true}));
     alertas      = alertas.map(a      => ({...a}));
     contas       = contas.filter(c => c.venc && c.desc).map(c       => ({...c,  id: c._id, pago: c.pago === true}));
     setSyncStatus('✅ Sincronizado', '#1a6b4a');
@@ -1218,14 +1222,47 @@ async function addFuncionario() {
   const sal    = moedaValor(document.getElementById('fn-salario'));
   const bonus  = moedaValor(document.getElementById('fn-bonus'));
   if (!nome||!sal) { alert('Preencha nome e salário.'); return; }
+  const mes = selMes(), ano = selAno();
   setSyncStatus('🔄 Salvando...', '#f0a500');
   try {
-    const doc = await fsAdd('funcionarios', {nome,cargo,sal,bonus});
-    funcionarios.push({...doc, id: doc._id});
+    const doc = await fsAdd('funcionarios', {nome,cargo,sal,bonus,mes,ano,pago:false});
+    funcionarios.push({...doc, id: doc._id, pago:false});
     setSyncStatus('✅ Salvo', '#1a6b4a');
     renderFolha();
     ['fn-nome','fn-cargo','fn-salario','fn-bonus'].forEach(id=>document.getElementById(id).value='');
   } catch(e) { setSyncStatus('❌ Erro ao salvar', '#d94f4f'); }
+}
+
+async function pagarFuncionario(id) {
+  const item = funcionarios.find(f => f.id === id);
+  if (!item) return;
+  setSyncStatus('🔄 Salvando...', '#f0a500');
+  try {
+    if (item._id) await fsUpdate('funcionarios', item._id, { pago: true });
+    item.pago = true;
+    setSyncStatus('✅ Salvo', '#1a6b4a');
+    renderFolha();
+  } catch(e) { setSyncStatus('❌ Erro', '#d94f4f'); }
+}
+
+async function replicarFolha() {
+  const m = selMes(), a = selAno();
+  let nm = m+1, na = a; if (nm > 12) { nm = 1; na = a+1; }
+  const atuais = funcionarios.filter(f => f.mes===m && f.ano===a);
+  if (!atuais.length) { alert('Nenhum funcionário cadastrado neste período para replicar.'); return; }
+  const jaExiste = funcionarios.some(f => f.mes===nm && f.ano===na);
+  if (jaExiste && !confirm(`Já existem funcionários em ${MESES[nm]}/${na}. Replicar mesmo assim (pode duplicar)?`)) return;
+  if (!confirm(`Replicar ${atuais.length} funcionário(s) de ${MESES[m]}/${a} para ${MESES[nm]}/${na}?`)) return;
+  setSyncStatus('🔄 Replicando...', '#f0a500');
+  try {
+    for (const f of atuais) {
+      const doc = await fsAdd('funcionarios', { nome:f.nome, cargo:f.cargo, sal:f.sal, bonus:f.bonus||0, mes:nm, ano:na, pago:false });
+      funcionarios.push({ ...doc, id: doc._id, pago:false });
+    }
+    setSyncStatus('✅ Replicado', '#1a6b4a');
+    renderFolha();
+    alert(`${atuais.length} funcionário(s) replicado(s) para ${MESES[nm]}/${na}.`);
+  } catch(e) { setSyncStatus('❌ Erro ao replicar', '#d94f4f'); }
 }
 
 async function deleteFuncionario(id) {
@@ -1244,21 +1281,26 @@ function renderFolha() {
   const m=selMes(),a=selAno();
   document.getElementById('folha-periodo').textContent=`${MESES[m]} / ${a}`;
   const body=document.getElementById('folha-body');
-  if(!funcionarios.length){body.innerHTML='<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--text-muted)">Nenhum funcionário cadastrado.</td></tr>';document.getElementById('folha-foot').innerHTML='';document.getElementById('folha-resumo').innerHTML='<p style="color:var(--text-muted);font-size:13px">Cadastre funcionários para ver o resumo.</p>';return;}
+  const items = funcionarios.filter(f => f.mes===m && f.ano===a);
+  if(!items.length){body.innerHTML='<tr><td colspan="7" style="text-align:center;padding:30px;color:var(--text-muted)">Nenhum funcionário cadastrado para este período.</td></tr>';document.getElementById('folha-foot').innerHTML='';document.getElementById('folha-resumo').innerHTML='<p style="color:var(--text-muted);font-size:13px">Cadastre funcionários para ver o resumo.</p>';return;}
   let totSal=0,totBonus=0,totTotal=0;
-  body.innerHTML=funcionarios.map(f=>{
+  body.innerHTML=items.map(f=>{
     const bonus=f.bonus||0, total=f.sal+bonus;
     totSal+=f.sal; totBonus+=bonus; totTotal+=total;
     return`<tr>
       <td>${f.nome}</td><td style="color:var(--text-muted)">${f.cargo}</td>
       <td class="num">${fmt(f.sal)}</td><td class="num">${fmt(bonus)}</td>
       <td class="num" style="color:var(--primary);font-weight:700">${fmt(total)}</td>
-      <td class="no-print"><button class="btn btn-danger btn-sm" onclick="deleteFuncionario('${f.id}')">✕</button></td>
+      <td>${f.pago ? '<span class="tag receita">pago</span>' : '<span class="tag despesa">pendente</span>'}</td>
+      <td class="no-print" style="white-space:nowrap">
+        ${!f.pago ? `<button class="btn btn-primary btn-sm" onclick="pagarFuncionario('${f.id}')">✓ Pago</button>` : ''}
+        <button class="btn btn-danger btn-sm" onclick="deleteFuncionario('${f.id}')">✕</button>
+      </td>
     </tr>`;}).join('');
   document.getElementById('folha-foot').innerHTML=`<tr>
-    <td colspan="2"><b>TOTAL (${funcionarios.length} func.)</b></td>
+    <td colspan="2"><b>TOTAL (${items.length} func.)</b></td>
     <td class="num">${fmt(totSal)}</td><td class="num">${fmt(totBonus)}</td>
-    <td class="num" style="color:var(--primary)">${fmt(totTotal)}</td><td class="no-print"></td>
+    <td class="num" style="color:var(--primary)">${fmt(totTotal)}</td><td colspan="2"></td>
   </tr>`;
   document.getElementById('folha-resumo').innerHTML=`
     <div style="display:flex;flex-direction:column;gap:10px">
@@ -1355,6 +1397,28 @@ function exportMensalidadesCSV() {
   el.href='data:text/csv;charset=utf-8,﻿'+encodeURIComponent(csv);
   el.download=`Mensalidades_VVB_${MESES[selMes()]}_${selAno()}.csv`;
   el.click();
+}
+
+async function replicarMensalidades() {
+  const m=selMes(), a=selAno();
+  let nm=m+1, na=a; if (nm>12) { nm=1; na=a+1; }
+  const atuais = lancamentos.filter(l => l.tipo==='receita' && l.mes===m && l.ano===a && filtroUnidade(l));
+  if (!atuais.length) { alert('Nenhuma mensalidade cadastrada neste período para replicar.'); return; }
+  const jaExiste = lancamentos.some(l => l.tipo==='receita' && l.mes===nm && l.ano===na && filtroUnidade(l));
+  if (jaExiste && !confirm(`Já existem mensalidades em ${MESES[nm]}/${na}. Replicar mesmo assim (pode duplicar)?`)) return;
+  if (!confirm(`Replicar ${atuais.length} mensalidade(s) de ${MESES[m]}/${a} para ${MESES[nm]}/${na}?`)) return;
+  setSyncStatus('🔄 Replicando...', '#f0a500');
+  try {
+    for (const l of atuais) {
+      let novaData = '';
+      if (l.data) { const dia = l.data.split('-')[2]; novaData = `${na}-${String(nm).padStart(2,'0')}-${dia}`; }
+      const doc = await fsAdd('lancamentos', { tipo:'receita', cat:l.cat, desc:l.desc, val:l.val, data:novaData, mes:nm, ano:na, unidade:l.unidade, freq:'fixa', pago:false, createdAt: new Date().toISOString() });
+      lancamentos.unshift({ ...doc, id: doc._id, pago:false });
+    }
+    setSyncStatus('✅ Replicado', '#1a6b4a');
+    renderMensalidades();
+    alert(`${atuais.length} mensalidade(s) replicada(s) para ${MESES[nm]}/${na}.`);
+  } catch(e) { setSyncStatus('❌ Erro ao replicar', '#d94f4f'); }
 }
 
 // ─── ALERTAS ─────────────────────────────────────────────────────────────────
