@@ -64,7 +64,8 @@ async function fsDelete(col, id) {
 }
 
 async function fsUpdate(col, id, data) {
-  const r = await fetch(`${FS_URL}/${col}/${id}?key=${FB_KEY}`, {
+  const mask = Object.keys(data).map(k => `updateMask.fieldPaths=${encodeURIComponent(k)}`).join('&');
+  const r = await fetch(`${FS_URL}/${col}/${id}?${mask}&key=${FB_KEY}`, {
     method:'PATCH', headers:{'Content-Type':'application/json'},
     body: JSON.stringify(toFS(data))
   });
@@ -362,6 +363,12 @@ async function fsUpdate(col, id, data) {
               <option value="despesa">Despesa</option>
             </select>
           </div>
+          <div class="form-row"><label>Frequência</label>
+            <select id="f-freq">
+              <option value="fixa">🔒 Fixa</option>
+              <option value="variavel">🔀 Variável</option>
+            </select>
+          </div>
           <div class="form-row"><label>Categoria</label><select id="f-cat"></select></div>
           <div class="form-row"><label>Descrição</label><input type="text" id="f-desc" placeholder="Ex: Mensalidade Sr. João"></div>
           <div class="form-row"><label>Valor (R$)</label><input type="text" inputmode="numeric" id="f-valor" oninput="maskMoeda(this)" placeholder="0,00"></div>
@@ -408,6 +415,9 @@ async function fsUpdate(col, id, data) {
             <input type="text" id="f-busca" placeholder="🔍 Buscar lançamento..." style="flex:1;border:1px solid var(--border);border-radius:8px;padding:8px 12px;font-size:13px;background:var(--bg)" oninput="renderLancamentos()">
             <select id="f-filtro-tipo" style="border:1px solid var(--border);border-radius:8px;padding:8px;font-size:13px;background:var(--bg)" onchange="renderLancamentos()">
               <option value="">Todos</option><option value="receita">Receitas</option><option value="despesa">Despesas</option>
+            </select>
+            <select id="f-filtro-freq" style="border:1px solid var(--border);border-radius:8px;padding:8px;font-size:13px;background:var(--bg)" onchange="renderLancamentos()">
+              <option value="">Fixa e Variável</option><option value="fixa">Só Fixa</option><option value="variavel">Só Variável</option>
             </select>
           </div>
           <div class="lancamentos-list" id="lista-lancamentos">
@@ -611,7 +621,7 @@ async function loadAllData() {
     [lancamentos, funcionarios, alertas, contas] = await Promise.all([
       fsList('lancamentos'), fsList('funcionarios'), fsList('alertas'), fsList('contas')
     ]);
-    lancamentos  = lancamentos.map(l  => ({...l,  id: l._id, pago: l.pago === true}));
+    lancamentos  = lancamentos.map(l  => ({...l,  id: l._id, pago: l.pago === true, freq: l.freq || 'variavel'}));
     funcionarios = funcionarios.map(f => ({...f,  id: f._id}));
     alertas      = alertas.map(a      => ({...a}));
     contas       = contas.map(c       => ({...c,  id: c._id, pago: c.pago === true}));
@@ -712,6 +722,7 @@ document.getElementById('al-cat').innerHTML = '<option value="">Selecione...</op
 async function addLancamento() {
   const tipo = document.getElementById('f-tipo').value;
   const cat  = document.getElementById('f-cat').value;
+  const freq = document.getElementById('f-freq').value;
   const desc = document.getElementById('f-desc').value.trim();
   const val  = moedaValor(document.getElementById('f-valor'));
   const data = document.getElementById('f-data').value;
@@ -724,7 +735,7 @@ async function addLancamento() {
   const pagamento  = tipo === 'despesa' ? document.getElementById('f-pagamento').value : '';
   setSyncStatus('🔄 Salvando...', '#f0a500');
   try {
-    const doc = await fsAdd('lancamentos', { tipo, cat, desc, val, data, mes, ano, unidade, pago: false, createdAt: new Date().toISOString() });
+    const doc = await fsAdd('lancamentos', { tipo, cat, desc, val, data, mes, ano, unidade, freq, pago: false, createdAt: new Date().toISOString() });
     lancamentos.unshift({ ...doc, id: doc._id, pago: false });
     if (tipo === 'despesa' && vencimento) {
       for (let p = 0; p < parcelas; p++) {
@@ -771,17 +782,19 @@ async function deleteLancamento(id) {
 function renderLancamentos() {
   const busca = (document.getElementById('f-busca')?.value || '').toLowerCase();
   const filtroTipo = document.getElementById('f-filtro-tipo')?.value || '';
+  const filtroFreq = document.getElementById('f-filtro-freq')?.value || '';
   let items = lancamentos.filter(l => {
     const matchBusca = !busca || l.desc.toLowerCase().includes(busca) || l.cat.toLowerCase().includes(busca);
     const matchTipo  = !filtroTipo || l.tipo === filtroTipo;
-    return matchBusca && matchTipo;
+    const matchFreq  = !filtroFreq || l.freq === filtroFreq;
+    return matchBusca && matchTipo && matchFreq;
   }).slice(0, 50);
   const el = document.getElementById('lancamentos-items');
   if (!items.length) { el.innerHTML = '<div class="empty-state">Nenhum lançamento encontrado.</div>'; return; }
   el.innerHTML = items.map(l => `
     <div class="lancamento-item">
       <div>
-        <div class="desc">${l.desc} <span class="tag ${l.tipo}">${l.tipo}</span> ${l.pago ? '<span class="tag receita">pago</span>' : ''}</div>
+        <div class="desc">${l.desc} <span class="tag ${l.tipo}">${l.tipo}</span> <span class="tag ${l.freq==='fixa'?'receita':'despesa'}">${l.freq==='fixa'?'fixa':'variável'}</span> ${l.pago ? '<span class="tag receita">pago</span>' : ''}</div>
         <div class="cat">${l.cat} · ${l.unidade||''} · ${MESES[l.mes]}/${l.ano} · ${l.data||''}</div>
       </div>
       <div style="display:flex;align-items:center;gap:12px">
@@ -974,6 +987,9 @@ function sumType(tipo, m, a) {
 function sumCat(tipo, cat, m, a) {
   return lancamentos.filter(l=>l.mes===m&&l.ano===a&&l.tipo===tipo&&(cat?l.cat===cat:true)&&filtroUnidade(l)).reduce((s,l)=>s+l.val,0);
 }
+function sumFreq(tipo, freq, m, a) {
+  return lancamentos.filter(l=>l.mes===m&&l.ano===a&&l.tipo===tipo&&l.freq===freq&&filtroUnidade(l)).reduce((s,l)=>s+l.val,0);
+}
 
 function renderKPIs() {
   const m=selMes(), a=selAno();
@@ -1052,6 +1068,8 @@ function renderDRE() {
   const pessoal=S('despesa',['Salários e Encargos','Benefícios (VR/VT)','Horas Extras']),aliment=S('despesa',['Alimentação e Nutrição']),medicam=S('despesa',['Medicamentos e Materiais']),terceiros=S('despesa',['Serviços Terceirizados']),csp=pessoal+aliment+medicam+terceiros,lucroBruto=recLiq-csp;
   const aluguel=S('despesa',['Aluguel / Locação']),energia=S('despesa',['Energia Elétrica']),agua=S('despesa',['Água e Saneamento']),telecom=S('despesa',['Telefone e Internet']),manut=S('despesa',['Manutenção e Reparos']),seguros=S('despesa',['Seguros']),marketing=S('despesa',['Marketing e Publicidade']),admin=S('despesa',['Administrativo / Escritório']),outros=S('despesa',['Outras Despesas']),despOper=aluguel+energia+agua+telecom+manut+seguros+marketing+admin+outros,ebitda=lucroBruto-despOper;
   const deprec=S('despesa',['Depreciação']),ebit=ebitda-deprec,lucroLiq=ebit,margem=recBruta?(lucroLiq/recBruta*100):0;
+  const recFixa=sumFreq('receita','fixa',m,a), recVar=sumFreq('receita','variavel',m,a);
+  const despFixa=sumFreq('despesa','fixa',m,a), despVar=sumFreq('despesa','variavel',m,a);
   function row(label,val,cls='',indent=0){const numCls=val<0?'neg':(val>0?'pos':'');return`<tr class="${cls}"><td style="padding-left:${24+indent*16}px">${label}</td><td class="num ${numCls}">${fmt(val)}</td></tr>`;}
   function srow(label){return`<tr class="section-title"><td colspan="2">${label}</td></tr>`;}
   function hrow(label,val){return`<tr class="highlight"><td>${label}</td><td class="num">${fmt(val)}</td></tr>`;}
@@ -1059,6 +1077,9 @@ function renderDRE() {
   document.getElementById('dre-table').innerHTML=`
     <thead><tr><th>Descrição</th><th style="text-align:right;width:180px">Valor</th></tr></thead>
     <tbody>
+      ${srow('0. RESUMO FIXO x VARIÁVEL')}
+      ${row('Receita Fixa',recFixa,'',1)}${row('Receita Variável',recVar,'',1)}
+      ${row('Despesa Fixa',-despFixa,'',1)}${row('Despesa Variável',-despVar,'',1)}
       ${srow('1. RECEITA OPERACIONAL BRUTA')}
       ${row('Mensalidades — Particular',recPart,'',1)}${row('Mensalidades — Plano de Saúde',recPlano,'',1)}${row('Serviços Extras e Outros',recExtra,'',1)}
       ${row('(−) Impostos sobre Receita',-impostos,'subtotal',1)}${hrow('= RECEITA OPERACIONAL LÍQUIDA',recLiq)}
