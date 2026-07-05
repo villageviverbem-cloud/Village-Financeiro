@@ -1263,35 +1263,90 @@ function renderCharts() {
 function renderDRE() {
   const m=selMes(), a=selAno();
   document.getElementById('dre-period-title').textContent=`DRE — ${MESES[m]} / ${a}`;
+  function sumCatFreq(tipo,cat,freq){ return lancamentos.filter(l=>l.mes===m&&l.ano===a&&l.tipo===tipo&&l.cat===cat&&l.freq===freq&&filtroUnidade(l)).reduce((s,l)=>s+l.val,0); }
   const S=(tipo,cats)=>cats.reduce((s,c)=>s+sumCat(tipo,c,m,a),0);
-  const recPart=S('receita',['Mensalidades — Particular']),recPlano=S('receita',['Mensalidades — Plano de Saúde']),recExtra=S('receita',['Serviços Extras','Locação de Espaço','Outras Receitas']),recBruta=recPart+recPlano+recExtra,impostos=S('despesa',['Impostos e Taxas']),recLiq=recBruta-impostos;
-  const pessoal=S('despesa',['Salários e Encargos','Benefícios (VR/VT)','Horas Extras']),aliment=S('despesa',['Alimentação e Nutrição']),medicam=S('despesa',['Medicamentos e Materiais']),terceiros=S('despesa',['Serviços Terceirizados']),csp=pessoal+aliment+medicam+terceiros,lucroBruto=recLiq-csp;
-  const aluguel=S('despesa',['Aluguel / Locação']),energia=S('despesa',['Energia Elétrica']),agua=S('despesa',['Água e Saneamento']),telecom=S('despesa',['Telefone e Internet']),manut=S('despesa',['Manutenção e Reparos']),seguros=S('despesa',['Seguros']),marketing=S('despesa',['Marketing e Publicidade']),admin=S('despesa',['Administrativo / Escritório']),outros=S('despesa',['Outras Despesas']),despOper=aluguel+energia+agua+telecom+manut+seguros+marketing+admin+outros,ebitda=lucroBruto-despOper;
-  const deprec=S('despesa',['Depreciação']),ebit=ebitda-deprec,lucroLiq=ebit,margem=recBruta?(lucroLiq/recBruta*100):0;
-  const recFixa=sumFreq('receita','fixa',m,a), recVar=sumFreq('receita','variavel',m,a);
-  const despFixa=sumFreq('despesa','fixa',m,a), despVar=sumFreq('despesa','variavel',m,a);
-  function row(label,val,cls='',indent=0){const numCls=val<0?'neg':(val>0?'pos':'');return`<tr class="${cls}"><td style="padding-left:${24+indent*16}px">${label}</td><td class="num ${numCls}">${fmt(val)}</td></tr>`;}
-  function srow(label){return`<tr class="section-title"><td colspan="2">${label}</td></tr>`;}
-  function hrow(label,val){return`<tr class="highlight"><td>${label}</td><td class="num">${fmt(val)}</td></tr>`;}
-  function trow(label,val){return`<tr class="total"><td>${label}</td><td class="num">${fmt(val)}</td></tr>`;}
+  const SF=(tipo,cats,freq)=>cats.reduce((s,c)=>s+sumCatFreq(tipo,c,freq),0);
+  const linha=(tipo,cats)=>({ fixo:SF(tipo,cats,'fixa'), variavel:SF(tipo,cats,'variavel'), total:S(tipo,cats) });
+
+  const recPartL=linha('receita',['Mensalidades — Particular']);
+  const recPlanoL=linha('receita',['Mensalidades — Plano de Saúde']);
+  const recExtraL=linha('receita',['Serviços Extras','Locação de Espaço','Outras Receitas']);
+  const recBruta=recPartL.total+recPlanoL.total+recExtraL.total;
+  const impostosL=linha('despesa',['Impostos e Taxas']);
+  const recLiq=recBruta-impostosL.total;
+
+  const pessoalL=linha('despesa',['Salários e Encargos','Benefícios (VR/VT)','Horas Extras']);
+  const alimentL=linha('despesa',['Alimentação e Nutrição']);
+  const medicamL=linha('despesa',['Medicamentos e Materiais']);
+  const terceirosL=linha('despesa',['Serviços Terceirizados']);
+  const csp=pessoalL.total+alimentL.total+medicamL.total+terceirosL.total;
+  const lucroBruto=recLiq-csp;
+
+  const aluguelL=linha('despesa',['Aluguel / Locação']);
+  const energiaL=linha('despesa',['Energia Elétrica']);
+  const aguaL=linha('despesa',['Água e Saneamento']);
+  const telecomL=linha('despesa',['Telefone e Internet']);
+  const manutL=linha('despesa',['Manutenção e Reparos']);
+  const segurosL=linha('despesa',['Seguros']);
+  const marketingL=linha('despesa',['Marketing e Publicidade']);
+  const adminL=linha('despesa',['Administrativo / Escritório']);
+  const outrosL=linha('despesa',['Outras Despesas']);
+  const despOper=aluguelL.total+energiaL.total+aguaL.total+telecomL.total+manutL.total+segurosL.total+marketingL.total+adminL.total+outrosL.total;
+  const ebitda=lucroBruto-despOper;
+
+  const deprecL=linha('despesa',['Depreciação']);
+  const ebit=ebitda-deprecL.total;
+  const lucroLiq=ebit, margem=recBruta?(lucroLiq/recBruta*100):0;
+
+  const recFixaTot=sumFreq('receita','fixa',m,a), recVarTot=sumFreq('receita','variavel',m,a);
+  const despFixaTot=sumFreq('despesa','fixa',m,a), despVarTot=sumFreq('despesa','variavel',m,a);
+
+  function row(label,l,sinal=1,cls='',indent=1){
+    const f=sinal*l.fixo, v=sinal*l.variavel, t=sinal*l.total;
+    const numCls=x=>x<0?'neg':(x>0?'pos':'');
+    return `<tr class="${cls}"><td style="padding-left:${24+indent*16}px">${label}</td>
+      <td class="num ${numCls(f)}">${fmt(f)}</td>
+      <td class="num ${numCls(v)}">${fmt(v)}</td>
+      <td class="num ${numCls(t)}" style="font-weight:600">${fmt(t)}</td></tr>`;
+  }
+  function srow(label){return`<tr class="section-title"><td colspan="4">${label}</td></tr>`;}
+  function hrow(label,total){return`<tr class="highlight"><td>${label}</td><td colspan="2"></td><td class="num">${fmt(total)}</td></tr>`;}
+  function trow(label,total){return`<tr class="total"><td>${label}</td><td colspan="2"></td><td class="num">${fmt(total)}</td></tr>`;}
+
   document.getElementById('dre-table').innerHTML=`
-    <thead><tr><th>Descrição</th><th style="text-align:right;width:180px">Valor</th></tr></thead>
+    <thead><tr><th>Descrição</th><th class="num" style="width:130px">Fixo</th><th class="num" style="width:130px">Variável</th><th class="num" style="width:150px">Total</th></tr></thead>
     <tbody>
-      ${srow('0. RESUMO FIXO x VARIÁVEL')}
-      ${row('Receita Fixa',recFixa,'',1)}${row('Receita Variável',recVar,'',1)}
-      ${row('Despesa Fixa',-despFixa,'',1)}${row('Despesa Variável',-despVar,'',1)}
+      ${srow('RESUMO GERAL')}
+      ${row('Receita Bruta',{fixo:recFixaTot,variavel:recVarTot,total:recFixaTot+recVarTot},1,'subtotal')}
+      ${row('Despesa Total',{fixo:despFixaTot,variavel:despVarTot,total:despFixaTot+despVarTot},-1,'subtotal')}
       ${srow('1. RECEITA OPERACIONAL BRUTA')}
-      ${row('Mensalidades — Particular',recPart,'',1)}${row('Mensalidades — Plano de Saúde',recPlano,'',1)}${row('Serviços Extras e Outros',recExtra,'',1)}
-      ${row('(−) Impostos sobre Receita',-impostos,'subtotal',1)}${hrow('= RECEITA OPERACIONAL LÍQUIDA',recLiq)}
+      ${row('Mensalidades — Particular',recPartL)}
+      ${row('Mensalidades — Plano de Saúde',recPlanoL)}
+      ${row('Serviços Extras e Outros',recExtraL)}
+      ${row('(−) Impostos sobre Receita',impostosL,-1,'subtotal')}
+      ${hrow('= RECEITA OPERACIONAL LÍQUIDA',recLiq)}
       ${srow('2. CUSTO DOS SERVIÇOS PRESTADOS (CSP)')}
-      ${row('Pessoal (Salários, Encargos e Benefícios)',-pessoal,'',1)}${row('Alimentação e Nutrição',-aliment,'',1)}${row('Medicamentos e Materiais',-medicam,'',1)}${row('Serviços Terceirizados',-terceiros,'',1)}
+      ${row('Pessoal (Salários, Encargos e Benefícios)',pessoalL,-1)}
+      ${row('Alimentação e Nutrição',alimentL,-1)}
+      ${row('Medicamentos e Materiais',medicamL,-1)}
+      ${row('Serviços Terceirizados',terceirosL,-1)}
       ${hrow('= LUCRO BRUTO',lucroBruto)}
       ${srow('3. DESPESAS OPERACIONAIS')}
-      ${row('Aluguel / Locação',-aluguel,'',1)}${row('Energia Elétrica',-energia,'',1)}${row('Água e Saneamento',-agua,'',1)}${row('Telefone e Internet',-telecom,'',1)}${row('Manutenção e Reparos',-manut,'',1)}${row('Seguros',-seguros,'',1)}${row('Marketing e Publicidade',-marketing,'',1)}${row('Administrativo / Escritório',-admin,'',1)}${row('Outras Despesas',-outros,'',1)}
+      ${row('Aluguel / Locação',aluguelL,-1)}
+      ${row('Energia Elétrica',energiaL,-1)}
+      ${row('Água e Saneamento',aguaL,-1)}
+      ${row('Telefone e Internet',telecomL,-1)}
+      ${row('Manutenção e Reparos',manutL,-1)}
+      ${row('Seguros',segurosL,-1)}
+      ${row('Marketing e Publicidade',marketingL,-1)}
+      ${row('Administrativo / Escritório',adminL,-1)}
+      ${row('Outras Despesas',outrosL,-1)}
       ${hrow('= EBITDA',ebitda)}
-      ${srow('4. DEPRECIAÇÃO E AMORTIZAÇÃO')}${row('Depreciação',-deprec,'',1)}${hrow('= EBIT (Resultado Operacional)',ebit)}
+      ${srow('4. DEPRECIAÇÃO E AMORTIZAÇÃO')}
+      ${row('Depreciação',deprecL,-1)}
+      ${hrow('= EBIT (Resultado Operacional)',ebit)}
       ${trow('RESULTADO LÍQUIDO DO EXERCÍCIO',lucroLiq)}
-      <tr class="subtotal"><td style="padding-left:24px;font-size:13px;color:var(--text-muted)">Margem Líquida</td><td class="num" style="color:var(--text-muted)">${margem.toFixed(2)}%</td></tr>
+      <tr class="subtotal"><td style="padding-left:24px;font-size:13px;color:var(--text-muted)">Margem Líquida</td><td colspan="2"></td><td class="num" style="color:var(--text-muted)">${margem.toFixed(2)}%</td></tr>
     </tbody>`;
 }
 
@@ -1488,6 +1543,15 @@ function renderMensalidades() {
     document.getElementById('mensalidades-resumo').innerHTML = '<p style="color:var(--text-muted);font-size:13px">Sem dados para este período.</p>';
     return;
   }
+  const hoje = new Date().toISOString().slice(0,10);
+  function statusBadge(l) {
+    if (l.pago) return '<span style="background:#d4f0e4;color:#1a6b4a;font-size:11px;font-weight:700;padding:3px 8px;border-radius:20px">✅ Recebido</span>';
+    if (!l.data) return '<span class="tag despesa">pendente</span>';
+    const diff = Math.round((new Date(l.data+'T12:00:00') - new Date(hoje+'T12:00:00')) / 86400000);
+    if (diff < 0) return `<span style="background:#fde8e8;color:#d94f4f;font-size:11px;font-weight:700;padding:3px 8px;border-radius:20px">🔴 ${Math.abs(diff)}d atraso</span>`;
+    if (diff === 0) return '<span style="background:#fff3cd;color:#8a6000;font-size:11px;font-weight:700;padding:3px 8px;border-radius:20px">⚠️ Vence hoje</span>';
+    return `<span style="background:#e8f5ef;color:#1a6b4a;font-size:11px;font-weight:700;padding:3px 8px;border-radius:20px">📅 ${diff}d</span>`;
+  }
   let total=0, totalPago=0, totalPendente=0;
   body.innerHTML = items.map(l => {
     total += l.val; if (l.pago) totalPago += l.val; else totalPendente += l.val;
@@ -1495,7 +1559,7 @@ function renderMensalidades() {
       <td>${l.desc}</td><td style="color:var(--text-muted)">${l.cat}</td><td>${l.unidade||''}</td>
       <td>${l.data ? l.data.split('-').reverse().join('/') : '—'}</td>
       <td class="num">${fmt(l.val)}</td>
-      <td>${l.pago ? '<span class="tag receita">pago</span>' : '<span class="tag despesa">pendente</span>'}</td>
+      <td>${statusBadge(l)}</td>
       <td class="no-print" style="white-space:nowrap">
         ${!l.pago ? `<button class="btn btn-primary btn-sm" onclick="pagarLancamento('${l.id}')">✓ Pago</button>` : ''}
         <button class="btn btn-sm" style="background:#e8f5ef;color:var(--primary)" onclick="openEditLancamento('${l.id}')">✏️</button>
