@@ -333,6 +333,13 @@ async function fsUpdate(col, id, data) {
           <div id="dash-setor"></div>
         </div>
       </div>
+
+      <!-- MENSALIDADES x DESPESAS FIXAS x CONTAS A PAGAR -->
+      <div class="chart-card" style="margin-top:18px">
+        <h3>💰 Mensalidades x Despesas Fixas x Contas a Pagar</h3>
+        <div class="chart-wrap" style="height:220px"><canvas id="chartTresJuntos"></canvas></div>
+        <div id="dash-tres-juntos" style="margin-top:14px"></div>
+      </div>
     </div>
 
     <!-- DRE -->
@@ -753,7 +760,7 @@ const MESES = ['','Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho',
 let lancamentos  = [];
 let funcionarios = [];
 let alertas      = [];
-let barChart, pieChart, lineChart, recBarChart, compChart, setorChart;
+let barChart, pieChart, lineChart, recBarChart, compChart, setorChart, tresJuntosChart;
 
 function setSyncStatus(msg, cor) {
   const el = document.getElementById('sync-status');
@@ -850,7 +857,7 @@ function renderUnidades() {
 function refresh() {
   renderKPIs(); renderCharts(); renderDRE(); renderLancamentos();
   renderComparativo(); renderFolha(); renderAlertas(); renderContas();
-  renderContasCards(); renderSetorDashboard(); renderUnidades(); renderMensalidades(); renderSemana(); renderDespesasFixas();
+  renderContasCards(); renderSetorDashboard(); renderUnidades(); renderMensalidades(); renderSemana(); renderDespesasFixas(); renderTresJuntos();
 }
 
 // ─── CATS ────────────────────────────────────────────────────────────────────
@@ -1422,10 +1429,19 @@ function renderComparativo() {
   const r1=sumType('receita',m1,a1), d1=sumType('despesa',m1,a1), l1=r1-d1;
   const r2=sumType('receita',m2,a2), d2=sumType('despesa',m2,a2), l2=r2-d2;
 
+  const msg1=lancamentos.filter(l=>l.tipo==='receita'&&l.mes===m1&&l.ano===a1&&filtroUnidade(l)).reduce((s,l)=>s+l.val,0);
+  const msg2=lancamentos.filter(l=>l.tipo==='receita'&&l.mes===m2&&l.ano===a2&&filtroUnidade(l)).reduce((s,l)=>s+l.val,0);
+  const df1=lancamentos.filter(l=>l.tipo==='despesa'&&l.freq==='fixa'&&l.mes===m1&&l.ano===a1&&filtroUnidade(l)).reduce((s,l)=>s+l.val,0);
+  const df2=lancamentos.filter(l=>l.tipo==='despesa'&&l.freq==='fixa'&&l.mes===m2&&l.ano===a2&&filtroUnidade(l)).reduce((s,l)=>s+l.val,0);
+  const todasContasComp=contasUnificadas();
+  const cp1=todasContasComp.filter(c=>!c.pago&&c.venc&&+c.venc.slice(5,7)===m1&&+c.venc.slice(0,4)===a1).reduce((s,c)=>s+c.val,0);
+  const cp2=todasContasComp.filter(c=>!c.pago&&c.venc&&+c.venc.slice(5,7)===m2&&+c.venc.slice(0,4)===a2).reduce((s,c)=>s+c.val,0);
+
   function varHtml(v1,v2){if(!v1)return'—';const pct=((v2-v1)/Math.abs(v1)*100).toFixed(1);const up=v2>=v1;return`<span class="${up?'var-pos':'var-neg'}">${up?'▲':'▼'} ${Math.abs(pct)}%</span>`;}
 
   document.getElementById('comp-kpis').innerHTML=[
     {label:'Receita',v1:r1,v2:r2,bar:'#28a06e'},{label:'Despesa',v1:d1,v2:d2,bar:'#d94f4f'},{label:'Resultado',v1:l1,v2:l2,bar:'#1a6b4a'},
+    {label:'Mensalidades',v1:msg1,v2:msg2,bar:'#28a06e'},{label:'Despesas Fixas',v1:df1,v2:df2,bar:'#f0a500'},{label:'Contas a Pagar (Pendente)',v1:cp1,v2:cp2,bar:'#d94f4f'},
   ].map(k=>`
     <div class="kpi-card">
       <div class="accent-bar" style="background:${k.bar}"></div>
@@ -1838,26 +1854,39 @@ function renderAlertas() {
 }
 
 // ─── SETOR + CONTAS VISUAIS ──────────────────────────────────────────────────
-const SETORES = [
-  { label:'Alimentação',    cats:['Alimentação e Nutrição'],                     cor:'#f97316', icon:'🍽️' },
-  { label:'Medicamentos',   cats:['Medicamentos e Materiais'],                   cor:'#d94f4f', icon:'💊' },
-  { label:'Pessoal',        cats:['Salários e Encargos','Benefícios (VR/VT)','Horas Extras'], cor:'#8b5cf6', icon:'👥' },
-  { label:'Energia',        cats:['Energia Elétrica'],                           cor:'#f0a500', icon:'⚡' },
-  { label:'Água',           cats:['Água e Saneamento'],                          cor:'#0ea5e9', icon:'💧' },
-  { label:'Aluguel',        cats:['Aluguel / Locação'],                          cor:'#1a6b4a', icon:'🏠' },
-  { label:'Telefone/Net',   cats:['Telefone e Internet'],                        cor:'#6366f1', icon:'📶' },
-  { label:'Manutenção',     cats:['Manutenção e Reparos'],                       cor:'#78716c', icon:'🔧' },
-  { label:'Terceirizados',  cats:['Serviços Terceirizados'],                     cor:'#06b6d4', icon:'🤝' },
-  { label:'Impostos',       cats:['Impostos e Taxas'],                           cor:'#64748b', icon:'📋' },
-  { label:'Outros',         cats:['Seguros','Depreciação','Marketing e Publicidade','Administrativo / Escritório','Outras Despesas'], cor:'#94a3b8', icon:'📦' },
+const SETORES_DETALHADOS = [
+  { label:'Mercado',            re:/mercado|padaria|a[cç]ougue|verdura|quitanda|hortifruti|feira|cesta b[aá]sica/i, cor:'#f97316', icon:'🛒' },
+  { label:'Restaurantes',       re:/restaurante|lanche|ifood|delivery|caf[eé]s?\b|bolo|doceria|guloseima/i, cor:'#fb923c', icon:'🍽️' },
+  { label:'Carro/Transporte',   re:/gasolina|\bposto\b|combustive|\buber\b|estacionamento|\bipva\b|pedagio|\bcarro\b|licenciamento|mecanic|\boficina\b|lavagem de carro/i, cor:'#3b82f6', icon:'🚗' },
+  { label:'Escola/Educação',    re:/\bescola\b|col[eé]gio|faculdade|\bcurso\b|material escolar|professor|\baula\b/i, cor:'#8b5cf6', icon:'🎓' },
+  { label:'Saúde',              re:/farm[aá]cia|remedio|medicamento|dentista|plano de sa[uú]de|unimed|exame|hospital|psicolog|fisioterapi|nutricionista/i, cor:'#d94f4f', icon:'🏥' },
+  { label:'Casa/Moradia',       re:/aluguel|condominio|\bluz\b|\bagua\b|\bgas\b|\biptu\b|manuten[cç][aã]o|reforma|parcela casa|prestacao.*casa/i, cor:'#1a6b4a', icon:'🏠' },
+  { label:'Lazer',              re:/viagem|passeio|cinema|clube|festa|academia|crossfit|beach tennis|tenis/i, cor:'#0ea5e9', icon:'🎉' },
+  { label:'Cuidados Pessoais',  re:/cabelo|sal[aã]o|\bunha\b|sobrancelha|barbearia|estetica/i, cor:'#ec4899', icon:'💇' },
+  { label:'Pets',               re:/\bpet\b|veterinari|ra[cç][aã]o|petshop|creche cachorro/i, cor:'#f59e0b', icon:'🐾' },
+  { label:'Financeiro',         re:/cart[aã]o|emprestimo|\bjuros\b|financiamento/i, cor:'#64748b', icon:'💳' },
+  { label:'Impostos',           re:/imposto|taxa|\binss\b|\bfgts\b|simples|\bacif\b/i, cor:'#475569', icon:'📋' },
+  { label:'Folha/Salários',     re:/salario|folha|cuidador|enfermeir|funcionari|\bdia\b|\bnoite\b|estagiari/i, cor:'#8b5cf6', icon:'👥' },
+  { label:'Empresa/Administrativo', re:/escrit[oó]rio|sistema|internet|telefone|marketing|consultoria|advoga|licitac/i, cor:'#06b6d4', icon:'🏢' },
+  { label:'Medicamentos/Clínica', re:/fralda|luva|oxig[eê]nio|material m[eé]dico|lixo hospitalar|produtos? (para|de) clinica/i, cor:'#e11d48', icon:'💊' },
+  { label:'Energia',            re:/energia el[eé]trica/i, cor:'#f0a500', icon:'⚡' },
 ];
+function detectarSetor(desc, cat) {
+  const texto = normalizar(`${desc||''} ${cat||''}`);
+  for (const s of SETORES_DETALHADOS) if (s.re.test(texto)) return s;
+  return { label:'Outros', cor:'#94a3b8', icon:'📦' };
+}
 
 function renderSetorDashboard() {
   const m = selMes(), a = selAno();
-  const dados = SETORES.map(s => ({
-    ...s,
-    val: s.cats.reduce((t, c) => t + sumCat('despesa', c, m, a), 0)
-  })).filter(s => s.val > 0).sort((a,b) => b.val - a.val);
+  const despesas = lancamentos.filter(l => l.tipo==='despesa' && l.mes===m && l.ano===a && filtroUnidade(l));
+  const grupos = {};
+  despesas.forEach(l => {
+    const s = detectarSetor(l.desc, l.cat);
+    if (!grupos[s.label]) grupos[s.label] = { ...s, val: 0 };
+    grupos[s.label].val += l.val;
+  });
+  const dados = Object.values(grupos).filter(s => s.val > 0).sort((a,b) => b.val - a.val);
 
   const total = dados.reduce((t,s) => t+s.val, 0);
 
@@ -1888,6 +1917,45 @@ function renderSetorDashboard() {
       </div>
     </div>`;
   }).join('') + `<div style="border-top:2px solid var(--border);margin-top:10px;padding-top:10px;display:flex;justify-content:space-between;font-weight:700"><span>Total Despesas</span><span style="color:var(--danger)">${fmt(total)}</span></div></div>`;
+}
+
+function renderTresJuntos() {
+  const m=selMes(), a=selAno();
+  const mensalidades = lancamentos.filter(l=>l.tipo==='receita' && l.mes===m && l.ano===a && filtroUnidade(l)).reduce((s,l)=>s+l.val,0);
+  const despFixas = lancamentos.filter(l=>l.tipo==='despesa' && l.freq==='fixa' && l.mes===m && l.ano===a && filtroUnidade(l)).reduce((s,l)=>s+l.val,0);
+  const todasContas = contasUnificadas();
+  const contasPendentes = todasContas.filter(c=>!c.pago).reduce((s,c)=>s+c.val,0);
+  const contasPagas = todasContas.filter(c=>c.pago).reduce((s,c)=>s+c.val,0);
+
+  if (tresJuntosChart) tresJuntosChart.destroy();
+  const canv = document.getElementById('chartTresJuntos');
+  if (canv) {
+    tresJuntosChart = new Chart(canv, {
+      type: 'bar',
+      data: { labels:['Mensalidades (Receita)','Despesas Fixas','Contas a Pagar (Pendente)'], datasets:[{
+        data:[mensalidades, despFixas, contasPendentes],
+        backgroundColor:['#28a06ecc','#f0a500cc','#d94f4fcc'], borderColor:['#28a06e','#f0a500','#d94f4f'], borderWidth:2
+      }] },
+      options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{y:{ticks:{callback:v=>'R$'+v.toLocaleString('pt-BR')}}} }
+    });
+  }
+  const el = document.getElementById('dash-tres-juntos');
+  if (el) {
+    el.innerHTML = `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
+      <div style="text-align:center;padding:10px;background:var(--bg);border-radius:8px">
+        <div style="font-size:11px;color:var(--text-muted)">Mensalidades a Receber</div>
+        <div style="font-weight:700;color:#28a06e">${fmt(mensalidades)}</div>
+      </div>
+      <div style="text-align:center;padding:10px;background:var(--bg);border-radius:8px">
+        <div style="font-size:11px;color:var(--text-muted)">Despesas Fixas do Mês</div>
+        <div style="font-weight:700;color:#f0a500">${fmt(despFixas)}</div>
+      </div>
+      <div style="text-align:center;padding:10px;background:var(--bg);border-radius:8px">
+        <div style="font-size:11px;color:var(--text-muted)">Contas a Pagar (Pendente / Pago)</div>
+        <div style="font-weight:700;color:#d94f4f">${fmt(contasPendentes)} <span style="font-size:11px;color:var(--text-muted)">/ ${fmt(contasPagas)} pago</span></div>
+      </div>
+    </div>`;
+  }
 }
 
 function renderSemana() {
