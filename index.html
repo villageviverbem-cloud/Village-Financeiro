@@ -621,10 +621,10 @@ async function loadAllData() {
     [lancamentos, funcionarios, alertas, contas] = await Promise.all([
       fsList('lancamentos'), fsList('funcionarios'), fsList('alertas'), fsList('contas')
     ]);
-    lancamentos  = lancamentos.map(l  => ({...l,  id: l._id, pago: l.pago === true, freq: l.freq || 'variavel'}));
-    funcionarios = funcionarios.map(f => ({...f,  id: f._id}));
+    lancamentos  = lancamentos.filter(l => l.tipo && l.desc && typeof l.val === 'number').map(l  => ({...l,  id: l._id, pago: l.pago === true, freq: l.freq || 'variavel'}));
+    funcionarios = funcionarios.filter(f => f.nome).map(f => ({...f,  id: f._id}));
     alertas      = alertas.map(a      => ({...a}));
-    contas       = contas.map(c       => ({...c,  id: c._id, pago: c.pago === true}));
+    contas       = contas.filter(c => c.venc && c.desc).map(c       => ({...c,  id: c._id, pago: c.pago === true}));
     setSyncStatus('✅ Sincronizado', '#1a6b4a');
     refresh();
   } catch(e) { setSyncStatus('❌ Erro ao sincronizar', '#d94f4f'); }
