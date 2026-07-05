@@ -486,10 +486,7 @@ async function fsUpdate(col, id, data) {
           <div class="form-row"><label>Nome</label><input type="text" id="fn-nome" placeholder="Ex: Maria Silva"></div>
           <div class="form-row"><label>Cargo</label><input type="text" id="fn-cargo" placeholder="Ex: Técnica em Enfermagem"></div>
           <div class="form-row"><label>Salário Base (R$)</label><input type="text" inputmode="numeric" id="fn-salario" oninput="maskMoeda(this)" placeholder="0,00"></div>
-          <div class="form-row"><label>VT (R$)</label><input type="text" inputmode="numeric" id="fn-vt" oninput="maskMoeda(this)" placeholder="0,00"></div>
-          <div class="form-row"><label>VR (R$)</label><input type="text" inputmode="numeric" id="fn-vr" oninput="maskMoeda(this)" placeholder="0,00"></div>
-          <div class="form-row"><label>INSS Empresa (%)</label><input type="number" id="fn-inss" min="0" max="100" step="0.1" value="20"></div>
-          <div class="form-row"><label>FGTS (%)</label><input type="number" id="fn-fgts" min="0" max="100" step="0.1" value="8"></div>
+          <div class="form-row"><label>Bônus (R$)</label><input type="text" inputmode="numeric" id="fn-bonus" oninput="maskMoeda(this)" placeholder="0,00"></div>
           <button class="btn btn-primary" onclick="addFuncionario()" style="width:100%">Salvar Funcionário</button>
         </div>
         <div class="form-card">
@@ -502,7 +499,7 @@ async function fsUpdate(col, id, data) {
         <table class="folha" id="folha-table">
           <thead><tr>
             <th>Nome</th><th>Cargo</th><th class="num">Salário Base</th>
-            <th class="num">VT+VR</th><th class="num">INSS Emp.</th><th class="num">FGTS</th>
+            <th class="num">Bônus</th>
             <th class="num">Custo Total</th><th class="no-print"></th>
           </tr></thead>
           <tbody id="folha-body"></tbody>
@@ -1129,18 +1126,15 @@ async function addFuncionario() {
   const nome   = document.getElementById('fn-nome').value.trim();
   const cargo  = document.getElementById('fn-cargo').value.trim();
   const sal    = moedaValor(document.getElementById('fn-salario'));
-  const vt     = moedaValor(document.getElementById('fn-vt'));
-  const vr     = moedaValor(document.getElementById('fn-vr'));
-  const inss   = parseFloat(document.getElementById('fn-inss').value)||20;
-  const fgts   = parseFloat(document.getElementById('fn-fgts').value)||8;
+  const bonus  = moedaValor(document.getElementById('fn-bonus'));
   if (!nome||!sal) { alert('Preencha nome e salário.'); return; }
   setSyncStatus('🔄 Salvando...', '#f0a500');
   try {
-    const doc = await fsAdd('funcionarios', {nome,cargo,sal,vt,vr,inss,fgts});
+    const doc = await fsAdd('funcionarios', {nome,cargo,sal,bonus});
     funcionarios.push({...doc, id: doc._id});
     setSyncStatus('✅ Salvo', '#1a6b4a');
     renderFolha();
-    ['fn-nome','fn-cargo','fn-salario','fn-vt','fn-vr'].forEach(id=>document.getElementById(id).value='');
+    ['fn-nome','fn-cargo','fn-salario','fn-bonus'].forEach(id=>document.getElementById(id).value='');
   } catch(e) { setSyncStatus('❌ Erro ao salvar', '#d94f4f'); }
 }
 
@@ -1160,27 +1154,25 @@ function renderFolha() {
   const m=selMes(),a=selAno();
   document.getElementById('folha-periodo').textContent=`${MESES[m]} / ${a}`;
   const body=document.getElementById('folha-body');
-  if(!funcionarios.length){body.innerHTML='<tr><td colspan="8" style="text-align:center;padding:30px;color:var(--text-muted)">Nenhum funcionário cadastrado.</td></tr>';document.getElementById('folha-foot').innerHTML='';document.getElementById('folha-resumo').innerHTML='<p style="color:var(--text-muted);font-size:13px">Cadastre funcionários para ver o resumo.</p>';return;}
-  let totSal=0,totBen=0,totInss=0,totFgts=0,totTotal=0;
+  if(!funcionarios.length){body.innerHTML='<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--text-muted)">Nenhum funcionário cadastrado.</td></tr>';document.getElementById('folha-foot').innerHTML='';document.getElementById('folha-resumo').innerHTML='<p style="color:var(--text-muted);font-size:13px">Cadastre funcionários para ver o resumo.</p>';return;}
+  let totSal=0,totBonus=0,totTotal=0;
   body.innerHTML=funcionarios.map(f=>{
-    const inssVal=f.sal*(f.inss/100), fgtsVal=f.sal*(f.fgts/100), ben=f.vt+f.vr, total=f.sal+ben+inssVal+fgtsVal;
-    totSal+=f.sal; totBen+=ben; totInss+=inssVal; totFgts+=fgtsVal; totTotal+=total;
+    const bonus=f.bonus||0, total=f.sal+bonus;
+    totSal+=f.sal; totBonus+=bonus; totTotal+=total;
     return`<tr>
       <td>${f.nome}</td><td style="color:var(--text-muted)">${f.cargo}</td>
-      <td class="num">${fmt(f.sal)}</td><td class="num">${fmt(ben)}</td>
-      <td class="num">${fmt(inssVal)}</td><td class="num">${fmt(fgtsVal)}</td>
+      <td class="num">${fmt(f.sal)}</td><td class="num">${fmt(bonus)}</td>
       <td class="num" style="color:var(--primary);font-weight:700">${fmt(total)}</td>
       <td class="no-print"><button class="btn btn-danger btn-sm" onclick="deleteFuncionario('${f.id}')">✕</button></td>
     </tr>`;}).join('');
   document.getElementById('folha-foot').innerHTML=`<tr>
     <td colspan="2"><b>TOTAL (${funcionarios.length} func.)</b></td>
-    <td class="num">${fmt(totSal)}</td><td class="num">${fmt(totBen)}</td>
-    <td class="num">${fmt(totInss)}</td><td class="num">${fmt(totFgts)}</td>
+    <td class="num">${fmt(totSal)}</td><td class="num">${fmt(totBonus)}</td>
     <td class="num" style="color:var(--primary)">${fmt(totTotal)}</td><td class="no-print"></td>
   </tr>`;
   document.getElementById('folha-resumo').innerHTML=`
     <div style="display:flex;flex-direction:column;gap:10px">
-      ${[['💰 Salários Base',totSal,'#1a6b4a'],['🎫 Benefícios (VT+VR)',totBen,'#0ea5e9'],['📋 INSS Empresa',totInss,'#8b5cf6'],['🏦 FGTS',totFgts,'#f0a500'],['💳 Custo Total da Folha',totTotal,'#d94f4f']].map(([l,v,c])=>`
+      ${[['💰 Salários Base',totSal,'#1a6b4a'],['🎁 Bônus',totBonus,'#f0a500'],['💳 Custo Total da Folha',totTotal,'#d94f4f']].map(([l,v,c])=>`
       <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:var(--bg);border-radius:8px">
         <span style="font-size:13px">${l}</span>
         <span style="font-weight:700;color:${c}">${fmt(v)}</span>
@@ -1189,10 +1181,10 @@ function renderFolha() {
 }
 
 function exportFolhaCSV() {
-  const rows=[['Nome','Cargo','Salário Base','VT+VR','INSS Empresa','FGTS','Custo Total']];
+  const rows=[['Nome','Cargo','Salário Base','Bônus','Custo Total']];
   funcionarios.forEach(f=>{
-    const inssVal=f.sal*(f.inss/100),fgtsVal=f.sal*(f.fgts/100),ben=f.vt+f.vr,total=f.sal+ben+inssVal+fgtsVal;
-    rows.push([f.nome,f.cargo,f.sal.toFixed(2),ben.toFixed(2),inssVal.toFixed(2),fgtsVal.toFixed(2),total.toFixed(2)]);
+    const bonus=f.bonus||0, total=f.sal+bonus;
+    rows.push([f.nome,f.cargo,f.sal.toFixed(2),bonus.toFixed(2),total.toFixed(2)]);
   });
   const csv=rows.map(r=>r.map(v=>`"${v}"`).join(';')).join('\n');
   const el=document.createElement('a');
