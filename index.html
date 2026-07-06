@@ -240,12 +240,13 @@ async function fsUpdate(col, id, data) {
     <div class="nav-item" data-view="folha" onclick="showView('folha',this)"><span class="icon">👥</span> Folha de Pagamento</div>
     <div class="nav-section">Gestão</div>
     <div class="nav-item" data-view="contas" onclick="showView('contas',this)"><span class="icon">📅</span> Contas a Pagar</div>
+    <div class="nav-item" data-view="contaspagas" onclick="showView('contaspagas',this)"><span class="icon">💳</span> Contas Pagas</div>
     <div class="nav-item" data-view="alertas" onclick="showView('alertas',this)"><span class="icon">🔔</span> Alertas de Limite</div>
     <div class="nav-section">Análises</div>
     <div class="nav-item" data-view="customorador" onclick="showView('customorador',this)"><span class="icon">🧓</span> Custo por Morador</div>
     <div class="nav-item" data-view="projecao" onclick="showView('projecao',this)"><span class="icon">🔮</span> Projeção</div>
   </div>
-  <div style="padding:10px 20px;font-size:11px;color:rgba(255,255,255,.5);border-top:1px solid rgba(255,255,255,.1)">v17 · atualizado 05/07/2026</div>
+  <div style="padding:10px 20px;font-size:11px;color:rgba(255,255,255,.5);border-top:1px solid rgba(255,255,255,.1)">v18 · atualizado 06/07/2026</div>
 </nav>
 
 <div id="main">
@@ -457,6 +458,40 @@ async function fsUpdate(col, id, data) {
       <div class="dre-container">
         <div class="dre-header"><h2>Contas Pendentes</h2></div>
         <div id="contas-list"><div class="empty-state">Nenhuma conta cadastrada.</div></div>
+      </div>
+    </div>
+
+    <!-- CONTAS PAGAS -->
+    <div class="view" id="view-contaspagas">
+      <div class="section-header">
+        <h2>Contas Pagas</h2>
+        <div class="flex-gap no-print">
+          <button class="btn btn-accent" onclick="exportContasPagasCSV()">⬇️ Exportar CSV</button>
+          <button class="btn btn-primary" onclick="window.print()">🖨️ Imprimir</button>
+        </div>
+      </div>
+      <p style="font-size:13px;color:var(--text-muted);margin-bottom:18px">Tudo que já foi marcado como pago no período selecionado — de Mensalidades, Despesas Fixas, Despesas Variáveis, Folha de Pagamento e Contas a Pagar, num lugar só.</p>
+      <div class="cards-row" id="contaspagas-cards" style="margin-bottom:18px"></div>
+      <div class="dre-container">
+        <div class="dre-header"><h2>Pagamentos — <span id="contaspagas-periodo"></span></h2></div>
+        <div class="no-print" style="padding:14px 24px 0;display:flex;gap:8px;flex-wrap:wrap">
+          <input type="text" id="cp-busca" placeholder="🔍 Buscar..." style="flex:1;min-width:200px;border:1px solid var(--border);border-radius:8px;padding:8px 12px;font-size:13px;background:var(--bg)" oninput="renderContasPagas()">
+          <select id="cp-origem" onchange="renderContasPagas()" style="border:1px solid var(--border);border-radius:8px;padding:8px;font-size:13px;background:var(--bg)">
+            <option value="">Todas as origens</option>
+            <option value="Despesa Fixa">Despesas Fixas</option>
+            <option value="Despesa Variável">Despesas Variáveis</option>
+            <option value="Lançamento">Lançamentos</option>
+            <option value="Folha de Pagamento">Folha de Pagamento</option>
+            <option value="Conta a Pagar">Contas a Pagar</option>
+          </select>
+        </div>
+        <table class="folha" id="contaspagas-table">
+          <thead><tr>
+            <th>Descrição</th><th>Origem</th><th>Categoria</th><th>Unidade</th><th class="num">Valor</th><th>Pago em</th>
+          </tr></thead>
+          <tbody id="contaspagas-body"></tbody>
+          <tfoot id="contaspagas-foot"></tfoot>
+        </table>
       </div>
     </div>
 
@@ -683,7 +718,7 @@ async function fsUpdate(col, id, data) {
         <div class="dre-header"><h2>Detalhamento da Projeção</h2></div>
         <table class="folha" id="projecao-table">
           <thead><tr>
-            <th>Mês</th><th class="num">Receita Projetada</th><th class="num">Despesa Fixa</th><th class="num">Despesa Variável (média)</th><th class="num">Despesa Total</th><th class="num">Resultado Projetado</th>
+            <th>Mês</th><th class="num">Receita Projetada</th><th class="num">Despesa Fixa</th><th class="num">Despesa Variável (média)</th><th class="num">Despesa Total</th><th class="num">Lucro Projetado</th><th class="num">Margem %</th>
           </tr></thead>
           <tbody id="projecao-body"></tbody>
         </table>
@@ -868,7 +903,7 @@ async function fsUpdate(col, id, data) {
 // ─── DATA ────────────────────────────────────────────────────────────────────
 const CATS = {
   receita: ['Mensalidades — Particular','Mensalidades — Plano de Saúde','Serviços Extras','Locação de Espaço','Outras Receitas'],
-  despesa: ['Salários e Encargos','Benefícios (VR/VT)','Horas Extras','Alimentação e Nutrição','Medicamentos e Materiais','Serviços Terceirizados','Aluguel / Locação','Energia Elétrica','Água e Saneamento','Telefone e Internet','Manutenção e Reparos','Impostos e Taxas','Seguros','Depreciação','Marketing e Publicidade','Administrativo / Escritório','Outras Despesas'],
+  despesa: ['Salários e Encargos','Benefícios (VR/VT)','Horas Extras','Bônus','Funcionário Extra','Plano de Saúde (Funcionários)','Alimentação e Nutrição','Limpeza','Medicamentos e Materiais','Serviços Terceirizados','Aluguel / Locação','Energia Elétrica','Água e Saneamento','Telefone e Internet','Manutenção e Reparos','Impostos e Taxas','Seguros','Depreciação','Marketing e Publicidade','Administrativo / Escritório','Outras Despesas'],
 };
 const MESES = ['','Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 
@@ -923,7 +958,7 @@ function selUnidade(){ return document.getElementById('sel-unidade')?.value || '
 function filtroUnidade(l){ const u=selUnidade(); return !u || l.unidade===u; }
 
 // ─── NAVIGATION ──────────────────────────────────────────────────────────────
-const TITLES = { dashboard:'Dashboard', dre:'DRE — Demonstração do Resultado', lancamentos:'Lançamentos', comparativo:'Comparativo entre Meses', folha:'Folha de Pagamento', alertas:'Alertas de Limite', contas:'Contas a Pagar', mensalidades:'Mensalidades', despesasfixas:'Despesas Fixas', despesasvariaveis:'Despesas Variáveis', customorador:'Custo por Morador', projecao:'Projeção Financeira' };
+const TITLES = { dashboard:'Dashboard', dre:'DRE — Demonstração do Resultado', lancamentos:'Lançamentos', comparativo:'Comparativo entre Meses', folha:'Folha de Pagamento', alertas:'Alertas de Limite', contas:'Contas a Pagar', contaspagas:'Contas Pagas', mensalidades:'Mensalidades', despesasfixas:'Despesas Fixas', despesasvariaveis:'Despesas Variáveis', customorador:'Custo por Morador', projecao:'Projeção Financeira' };
 let contas = [];
 function showView(id, el) {
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
@@ -973,7 +1008,7 @@ function refresh() {
   renderKPIs(); renderCharts(); renderDRE(); renderLancamentos();
   renderComparativo(); renderFolha(); renderAlertas(); renderContas();
   renderContasCards(); renderSetorDashboard(); renderUnidades(); renderMensalidades(); renderSemana(); renderDespesasFixas(); renderTresJuntos();
-  renderDespesasVariaveis(); renderCustoMorador(); renderProjecao();
+  renderDespesasVariaveis(); renderCustoMorador(); renderProjecao(); renderContasPagas();
 }
 
 // ─── CATS ────────────────────────────────────────────────────────────────────
@@ -1144,10 +1179,11 @@ async function pagarLancamento(id) {
   if (!item) return;
   setSyncStatus('🔄 Salvando...', '#f0a500');
   try {
-    if (item._id) await fsUpdate('lancamentos', item._id, { pago: true });
-    item.pago = true;
+    const pagoEm = new Date().toISOString().slice(0,10);
+    if (item._id) await fsUpdate('lancamentos', item._id, { pago: true, pagoEm });
+    item.pago = true; item.pagoEm = pagoEm;
     setSyncStatus('✅ Salvo', '#1a6b4a');
-    renderLancamentos();
+    refresh();
   } catch(e) { setSyncStatus('❌ Erro', '#d94f4f'); }
 }
 
@@ -1245,9 +1281,13 @@ function parseDataPlanilha(s) {
 }
 
 const IMPORT_CAT_RULES = [
+  [/hora extra/i, 'despesa', 'Horas Extras'],
+  [/funcionario extra|cuidador extra|extra.*funcionario/i, 'despesa', 'Funcionário Extra'],
+  [/\bbonus\b|b[oô]nus/i, 'despesa', 'Bônus'],
+  [/plano de sa[uú]de/i, 'despesa', 'Plano de Saúde (Funcionários)'],
   [/sal[aá]rio|folha|cuidador|encarregad|t[eé]cnic[oa] em|enfermeir/i, 'despesa', 'Salários e Encargos'],
   [/\bvt\b|\bvr\b|vale.?transporte|vale.?refei|benef[ií]cio/i, 'despesa', 'Benefícios (VR/VT)'],
-  [/hora extra/i, 'despesa', 'Horas Extras'],
+  [/limpeza/i, 'despesa', 'Limpeza'],
   [/mercado|padaria|a[cç]ougue|verdura|quitanda|alimenta|lanche|caf[eé]s?\b|nutri|restaurante/i, 'despesa', 'Alimentação e Nutrição'],
   [/fralda|farm[aá]cia|medicamento|luva|material m[eé]dico|produto[s]? m[eé]dico|oxig[eê]nio/i, 'despesa', 'Medicamentos e Materiais'],
   [/terceirizad|consultoria|freelanc|pedreiro/i, 'despesa', 'Serviços Terceirizados'],
@@ -1366,14 +1406,20 @@ async function confirmImport() {
 }
 
 // ─── KPIs ─────────────────────────────────────────────────────────────────────
+function sumFolhaSalario(m, a) { return funcionarios.filter(f=>f.mes===m&&f.ano===a).reduce((s,f)=>s+f.sal,0); }
+function sumFolhaBonus(m, a) { return funcionarios.filter(f=>f.mes===m&&f.ano===a).reduce((s,f)=>s+(f.bonus||0),0); }
+function sumFolha(m, a) { return sumFolhaSalario(m,a) + sumFolhaBonus(m,a); }
+
 function sumType(tipo, m, a) {
-  return lancamentos.filter(l=>l.mes===m&&l.ano===a&&l.tipo===tipo&&filtroUnidade(l)).reduce((s,l)=>s+l.val,0);
+  const base = lancamentos.filter(l=>l.mes===m&&l.ano===a&&l.tipo===tipo&&filtroUnidade(l)).reduce((s,l)=>s+l.val,0);
+  return tipo === 'despesa' ? base + sumFolha(m,a) : base;
 }
 function sumCat(tipo, cat, m, a) {
   return lancamentos.filter(l=>l.mes===m&&l.ano===a&&l.tipo===tipo&&(cat?l.cat===cat:true)&&filtroUnidade(l)).reduce((s,l)=>s+l.val,0);
 }
 function sumFreq(tipo, freq, m, a) {
-  return lancamentos.filter(l=>l.mes===m&&l.ano===a&&l.tipo===tipo&&l.freq===freq&&filtroUnidade(l)).reduce((s,l)=>s+l.val,0);
+  const base = lancamentos.filter(l=>l.mes===m&&l.ano===a&&l.tipo===tipo&&l.freq===freq&&filtroUnidade(l)).reduce((s,l)=>s+l.val,0);
+  return (tipo === 'despesa' && freq === 'fixa') ? base + sumFolha(m,a) : base;
 }
 
 function renderKPIs() {
@@ -1461,10 +1507,16 @@ function renderDRE() {
   const recLiq=recBruta-impostosL.total;
 
   const pessoalL=linha('despesa',['Salários e Encargos','Benefícios (VR/VT)','Horas Extras']);
+  const folhaSal=sumFolhaSalario(m,a); pessoalL.fixo+=folhaSal; pessoalL.total+=folhaSal;
+  const bonusL=linha('despesa',['Bônus']);
+  const folhaBonus=sumFolhaBonus(m,a); bonusL.fixo+=folhaBonus; bonusL.total+=folhaBonus;
+  const funcExtraL=linha('despesa',['Funcionário Extra']);
+  const planoSaudeL=linha('despesa',['Plano de Saúde (Funcionários)']);
   const alimentL=linha('despesa',['Alimentação e Nutrição']);
+  const limpezaL=linha('despesa',['Limpeza']);
   const medicamL=linha('despesa',['Medicamentos e Materiais']);
   const terceirosL=linha('despesa',['Serviços Terceirizados']);
-  const csp=pessoalL.total+alimentL.total+medicamL.total+terceirosL.total;
+  const csp=pessoalL.total+bonusL.total+funcExtraL.total+planoSaudeL.total+alimentL.total+limpezaL.total+medicamL.total+terceirosL.total;
   const lucroBruto=recLiq-csp;
 
   const aluguelL=linha('despesa',['Aluguel / Locação']);
@@ -1511,8 +1563,12 @@ function renderDRE() {
       ${row('(−) Impostos sobre Receita',impostosL,-1,'subtotal')}
       ${hrow('= RECEITA OPERACIONAL LÍQUIDA',recLiq)}
       ${srow('2. CUSTO DOS SERVIÇOS PRESTADOS (CSP)')}
-      ${row('Pessoal (Salários, Encargos e Benefícios)',pessoalL,-1)}
+      ${row('Pessoal (Salários e Encargos)',pessoalL,-1)}
+      ${row('Bônus',bonusL,-1)}
+      ${row('Funcionário Extra',funcExtraL,-1)}
+      ${row('Plano de Saúde (Funcionários)',planoSaudeL,-1)}
       ${row('Alimentação e Nutrição',alimentL,-1)}
+      ${row('Limpeza',limpezaL,-1)}
       ${row('Medicamentos e Materiais',medicamL,-1)}
       ${row('Serviços Terceirizados',terceirosL,-1)}
       ${hrow('= LUCRO BRUTO',lucroBruto)}
@@ -1548,8 +1604,8 @@ function renderComparativo() {
 
   const msg1=lancamentos.filter(l=>l.tipo==='receita'&&l.mes===m1&&l.ano===a1&&filtroUnidade(l)).reduce((s,l)=>s+l.val,0);
   const msg2=lancamentos.filter(l=>l.tipo==='receita'&&l.mes===m2&&l.ano===a2&&filtroUnidade(l)).reduce((s,l)=>s+l.val,0);
-  const df1=lancamentos.filter(l=>l.tipo==='despesa'&&l.freq==='fixa'&&l.mes===m1&&l.ano===a1&&filtroUnidade(l)).reduce((s,l)=>s+l.val,0);
-  const df2=lancamentos.filter(l=>l.tipo==='despesa'&&l.freq==='fixa'&&l.mes===m2&&l.ano===a2&&filtroUnidade(l)).reduce((s,l)=>s+l.val,0);
+  const df1=lancamentos.filter(l=>l.tipo==='despesa'&&l.freq==='fixa'&&l.mes===m1&&l.ano===a1&&filtroUnidade(l)).reduce((s,l)=>s+l.val,0) + sumFolha(m1,a1);
+  const df2=lancamentos.filter(l=>l.tipo==='despesa'&&l.freq==='fixa'&&l.mes===m2&&l.ano===a2&&filtroUnidade(l)).reduce((s,l)=>s+l.val,0) + sumFolha(m2,a2);
   const todasContasComp=contasUnificadas();
   const cp1=todasContasComp.filter(c=>!c.pago&&c.venc&&+c.venc.slice(5,7)===m1&&+c.venc.slice(0,4)===a1).reduce((s,c)=>s+c.val,0);
   const cp2=todasContasComp.filter(c=>!c.pago&&c.venc&&+c.venc.slice(5,7)===m2&&+c.venc.slice(0,4)===a2).reduce((s,c)=>s+c.val,0);
@@ -1614,10 +1670,11 @@ async function pagarFuncionario(id) {
   if (!item) return;
   setSyncStatus('🔄 Salvando...', '#f0a500');
   try {
-    if (item._id) await fsUpdate('funcionarios', item._id, { pago: true });
-    item.pago = true;
+    const pagoEm = new Date().toISOString().slice(0,10);
+    if (item._id) await fsUpdate('funcionarios', item._id, { pago: true, pagoEm });
+    item.pago = true; item.pagoEm = pagoEm;
     setSyncStatus('✅ Salvo', '#1a6b4a');
-    renderFolha();
+    refresh();
   } catch(e) { setSyncStatus('❌ Erro', '#d94f4f'); }
 }
 
@@ -1738,8 +1795,9 @@ async function marcarTodosPago(ids) {
 async function pagarLancamentoSilencioso(id) {
   const item = lancamentos.find(l => l.id === id);
   if (!item || item.pago) return;
-  if (item._id) await fsUpdate('lancamentos', item._id, { pago: true });
-  item.pago = true;
+  const pagoEm = new Date().toISOString().slice(0,10);
+  if (item._id) await fsUpdate('lancamentos', item._id, { pago: true, pagoEm });
+  item.pago = true; item.pagoEm = pagoEm;
 }
 
 function renderMensalidades() {
@@ -2026,7 +2084,7 @@ function renderCustoMorador() {
   document.getElementById('customorador-periodo').textContent = `${MESES[m]} / ${a}`;
   const residentes = lancamentos.filter(l => l.tipo==='receita' && l.mes===m && l.ano===a && filtroUnidade(l))
     .sort((x,y) => x.desc.localeCompare(y.desc, 'pt-BR'));
-  const despesaTotal = lancamentos.filter(l => l.tipo==='despesa' && l.mes===m && l.ano===a && filtroUnidade(l)).reduce((s,l)=>s+l.val,0);
+  const despesaTotal = lancamentos.filter(l => l.tipo==='despesa' && l.mes===m && l.ano===a && filtroUnidade(l)).reduce((s,l)=>s+l.val,0) + sumFolha(m,a);
   const n = residentes.length;
   const custoRateado = n ? despesaTotal / n : 0;
   const receitaTotal = residentes.reduce((s,l)=>s+l.val,0);
@@ -2089,7 +2147,7 @@ function renderProjecao() {
   const mediaVar = historicoVar.length ? historicoVar.reduce((s,v)=>s+v,0)/historicoVar.length : 0;
 
   const receitaBase = lancamentos.filter(l=>l.tipo==='receita'&&l.mes===m&&l.ano===a&&filtroUnidade(l)).reduce((s,l)=>s+l.val,0);
-  const despFixaBase = lancamentos.filter(l=>l.tipo==='despesa'&&l.freq==='fixa'&&l.mes===m&&l.ano===a&&filtroUnidade(l)).reduce((s,l)=>s+l.val,0);
+  const despFixaBase = lancamentos.filter(l=>l.tipo==='despesa'&&l.freq==='fixa'&&l.mes===m&&l.ano===a&&filtroUnidade(l)).reduce((s,l)=>s+l.val,0) + sumFolha(m,a);
 
   const linhas = [];
   let pm=m, pa=a;
@@ -2112,15 +2170,18 @@ function renderProjecao() {
     });
   }
 
-  document.getElementById('projecao-body').innerHTML = linhas.map(l => `
-    <tr>
+  document.getElementById('projecao-body').innerHTML = linhas.map(l => {
+    const margemPct = l.receita ? (l.resultado/l.receita*100) : 0;
+    return `<tr>
       <td>${MESES[l.mes]} / ${l.ano}</td>
       <td class="num pos">${fmt(l.receita)}</td>
       <td class="num neg">${fmt(l.despFixa)}</td>
       <td class="num neg">${fmt(l.despVar)}</td>
       <td class="num neg">${fmt(l.despTotal)}</td>
       <td class="num" style="font-weight:700;color:${l.resultado>=0?'var(--primary)':'var(--danger)'}">${fmt(l.resultado)}</td>
-    </tr>`).join('');
+      <td class="num" style="color:${l.resultado>=0?'var(--primary)':'var(--danger)'}">${margemPct.toFixed(1)}%</td>
+    </tr>`;
+  }).join('');
 }
 
 // ─── ALERTAS ─────────────────────────────────────────────────────────────────
@@ -2210,6 +2271,12 @@ function renderSetorDashboard() {
     if (!grupos[s.label]) grupos[s.label] = { ...s, val: 0 };
     grupos[s.label].val += l.val;
   });
+  const folhaTotal = sumFolha(m, a);
+  if (folhaTotal > 0) {
+    const s = detectarSetor('folha', 'Salários e Encargos');
+    if (!grupos[s.label]) grupos[s.label] = { ...s, val: 0 };
+    grupos[s.label].val += folhaTotal;
+  }
   const dados = Object.values(grupos).filter(s => s.val > 0).sort((a,b) => b.val - a.val);
 
   const total = dados.reduce((t,s) => t+s.val, 0);
@@ -2246,7 +2313,7 @@ function renderSetorDashboard() {
 function renderTresJuntos() {
   const m=selMes(), a=selAno();
   const mensalidades = lancamentos.filter(l=>l.tipo==='receita' && l.mes===m && l.ano===a && filtroUnidade(l)).reduce((s,l)=>s+l.val,0);
-  const despFixas = lancamentos.filter(l=>l.tipo==='despesa' && l.freq==='fixa' && l.mes===m && l.ano===a && filtroUnidade(l)).reduce((s,l)=>s+l.val,0);
+  const despFixas = lancamentos.filter(l=>l.tipo==='despesa' && l.freq==='fixa' && l.mes===m && l.ano===a && filtroUnidade(l)).reduce((s,l)=>s+l.val,0) + sumFolha(m,a);
   const todasContas = contasUnificadas();
   const contasPendentes = todasContas.filter(c=>!c.pago).reduce((s,c)=>s+c.val,0);
   const contasPagas = todasContas.filter(c=>c.pago).reduce((s,c)=>s+c.val,0);
@@ -2364,12 +2431,81 @@ async function pagarConta(id) {
   if (!c) return;
   setSyncStatus('🔄 Salvando...', '#f0a500');
   try {
-    if (c._id) await fsUpdate('contas', c._id, {pago: true});
-    c.pago = true;
+    const pagoEm = new Date().toISOString().slice(0,10);
+    if (c._id) await fsUpdate('contas', c._id, {pago: true, pagoEm});
+    c.pago = true; c.pagoEm = pagoEm;
     setSyncStatus('✅ Pago', '#1a6b4a');
-    renderContas(); renderKPIs();
+    refresh();
   } catch(e) { setSyncStatus('❌ Erro', '#d94f4f'); }
 }
+
+// ─── CONTAS PAGAS ────────────────────────────────────────────────────────────
+function contasPagasUnificadas() {
+  const m=selMes(), a=selAno();
+  const doLancamentos = lancamentos.filter(l => l.tipo==='despesa' && l.pago && l.mes===m && l.ano===a && filtroUnidade(l))
+    .map(l => ({ desc:l.desc, cat:l.cat, unidade:l.unidade||'', val:l.val, pagoEm:l.pagoEm||'',
+      origem: l.freq==='fixa' ? 'Despesa Fixa' : (l.freq==='variavel' ? 'Despesa Variável' : 'Lançamento') }));
+  const doFuncionarios = funcionarios.filter(f => f.pago && f.mes===m && f.ano===a)
+    .map(f => ({ desc:f.nome, cat:f.cargo||'—', unidade:'', val:f.sal+(f.bonus||0), pagoEm:f.pagoEm||'', origem:'Folha de Pagamento' }));
+  const doContas = contas.filter(c => c.pago && filtroUnidade(c))
+    .map(c => ({ desc:c.desc, cat:c.cat||'—', unidade:c.unidade||'', val:c.val, pagoEm:c.pagoEm||'', origem:'Conta a Pagar' }));
+  return [...doLancamentos, ...doFuncionarios, ...doContas];
+}
+
+function renderContasPagas() {
+  const m=selMes(), a=selAno();
+  document.getElementById('contaspagas-periodo').textContent = `${MESES[m]} / ${a}`;
+  const busca = (document.getElementById('cp-busca')?.value || '').toLowerCase();
+  const filtroOrigem = document.getElementById('cp-origem')?.value || '';
+  const todos = contasPagasUnificadas()
+    .filter(c => !busca || c.desc.toLowerCase().includes(busca) || c.cat.toLowerCase().includes(busca))
+    .filter(c => !filtroOrigem || c.origem === filtroOrigem)
+    .sort((x,y) => (y.pagoEm||'').localeCompare(x.pagoEm||''));
+
+  const porOrigem = {};
+  todos.forEach(c => { porOrigem[c.origem] = (porOrigem[c.origem]||0) + c.val; });
+  document.getElementById('contaspagas-cards').innerHTML = [
+    { label:'Total Pago no Período', val: todos.reduce((s,c)=>s+c.val,0), cor:'#1a6b4a', icon:'💰' },
+    ...Object.entries(porOrigem).map(([origem,val]) => ({ label:origem, val, cor:'#28a06e', icon:'💳' })),
+  ].map(k => `
+    <div class="kpi-card">
+      <div class="accent-bar" style="background:${k.cor}"></div>
+      <div class="label">${k.icon} ${k.label}</div>
+      <div class="value" style="color:${k.cor};font-size:20px">${fmt(k.val)}</div>
+    </div>`).join('');
+
+  const body = document.getElementById('contaspagas-body');
+  if (!todos.length) {
+    body.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--text-muted)">Nenhum pagamento registrado para este período.</td></tr>';
+    document.getElementById('contaspagas-foot').innerHTML = '';
+    return;
+  }
+  body.innerHTML = todos.map(c => `
+    <tr>
+      <td>${c.desc}</td>
+      <td><span class="tag despesa">${c.origem}</span></td>
+      <td style="color:var(--text-muted)">${c.cat}</td>
+      <td>${c.unidade}</td>
+      <td class="num">${fmt(c.val)}</td>
+      <td>${c.pagoEm ? c.pagoEm.split('-').reverse().join('/') : '—'}</td>
+    </tr>`).join('');
+  document.getElementById('contaspagas-foot').innerHTML = `<tr>
+    <td colspan="4"><b>TOTAL (${todos.length} pagamentos)</b></td>
+    <td class="num" style="color:var(--primary)">${fmt(todos.reduce((s,c)=>s+c.val,0))}</td><td></td>
+  </tr>`;
+}
+
+function exportContasPagasCSV() {
+  const todos = contasPagasUnificadas();
+  const rows=[['Descrição','Origem','Categoria','Unidade','Valor','Pago em']];
+  todos.forEach(c=>rows.push([c.desc,c.origem,c.cat,c.unidade,c.val.toFixed(2),c.pagoEm]));
+  const csv=rows.map(r=>r.map(v=>`"${v}"`).join(';')).join('\n');
+  const el=document.createElement('a');
+  el.href='data:text/csv;charset=utf-8,﻿'+encodeURIComponent(csv);
+  el.download=`ContasPagas_VVB_${MESES[selMes()]}_${selAno()}.csv`;
+  el.click();
+}
+
 async function deleteConta(id) {
   if (!confirm('Excluir esta conta?')) return;
   const item = contas.find(c => c.id === id);
