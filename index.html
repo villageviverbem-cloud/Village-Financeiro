@@ -228,22 +228,24 @@ async function fsUpdate(col, id, data) {
   </div>
   <div class="sidebar-nav">
     <div class="nav-section">Visão Geral</div>
-    <div class="nav-item active" onclick="showView('dashboard',this)"><span class="icon">📊</span> Dashboard</div>
+    <div class="nav-item active" data-view="dashboard" onclick="showView('dashboard',this)"><span class="icon">📊</span> Dashboard</div>
     <div class="nav-section">Financeiro</div>
-    <div class="nav-item" onclick="showView('dre',this)"><span class="icon">📑</span> DRE</div>
-    <div class="nav-item" onclick="showView('lancamentos',this)"><span class="icon">📝</span> Lançamentos</div>
-    <div class="nav-item" onclick="showView('comparativo',this)"><span class="icon">📈</span> Comparativo</div>
+    <div class="nav-item" data-view="dre" onclick="showView('dre',this)"><span class="icon">📑</span> DRE</div>
+    <div class="nav-item" data-view="lancamentos" onclick="showView('lancamentos',this)"><span class="icon">📝</span> Lançamentos</div>
+    <div class="nav-item" data-view="comparativo" onclick="showView('comparativo',this)"><span class="icon">📈</span> Comparativo</div>
+    <div class="nav-section">Recorrentes</div>
+    <div class="nav-item" data-view="mensalidades" onclick="showView('mensalidades',this)"><span class="icon">💰</span> Mensalidades</div>
+    <div class="nav-item" data-view="despesasfixas" onclick="showView('despesasfixas',this)"><span class="icon">🔒</span> Despesas Fixas</div>
+    <div class="nav-item" data-view="despesasvariaveis" onclick="showView('despesasvariaveis',this)"><span class="icon">🔀</span> Despesas Variáveis</div>
+    <div class="nav-item" data-view="folha" onclick="showView('folha',this)"><span class="icon">👥</span> Folha de Pagamento</div>
     <div class="nav-section">Gestão</div>
-    <div class="nav-item" onclick="showView('folha',this)"><span class="icon">👥</span> Folha de Pagamento</div>
-    <div class="nav-item" onclick="showView('alertas',this)"><span class="icon">🔔</span> Alertas de Limite</div>
-    <div class="nav-item" onclick="showView('contas',this)"><span class="icon">📅</span> Contas a Pagar</div>
-    <div class="nav-item" onclick="showView('mensalidades',this)"><span class="icon">💰</span> Mensalidades</div>
-    <div class="nav-item" onclick="showView('despesasfixas',this)"><span class="icon">🔒</span> Despesas Fixas</div>
-    <div class="nav-item" onclick="showView('despesasvariaveis',this)"><span class="icon">🔀</span> Despesas Variáveis</div>
+    <div class="nav-item" data-view="contas" onclick="showView('contas',this)"><span class="icon">📅</span> Contas a Pagar</div>
+    <div class="nav-item" data-view="alertas" onclick="showView('alertas',this)"><span class="icon">🔔</span> Alertas de Limite</div>
     <div class="nav-section">Análises</div>
-    <div class="nav-item" onclick="showView('customorador',this)"><span class="icon">🧓</span> Custo por Morador</div>
-    <div class="nav-item" onclick="showView('projecao',this)"><span class="icon">🔮</span> Projeção</div>
+    <div class="nav-item" data-view="customorador" onclick="showView('customorador',this)"><span class="icon">🧓</span> Custo por Morador</div>
+    <div class="nav-item" data-view="projecao" onclick="showView('projecao',this)"><span class="icon">🔮</span> Projeção</div>
   </div>
+  <div style="padding:10px 20px;font-size:11px;color:rgba(255,255,255,.5);border-top:1px solid rgba(255,255,255,.1)">v14 · atualizado 05/07/2026</div>
 </nav>
 
 <div id="main">
@@ -315,7 +317,7 @@ async function fsUpdate(col, id, data) {
       <div class="chart-card" style="margin-top:18px">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
           <h3 style="margin:0">📅 Contas a Pagar — Próximas e Pendentes</h3>
-          <button class="btn btn-primary btn-sm no-print" onclick="showView('contas', document.querySelectorAll('.nav-item')[6])">Ver todas ›</button>
+          <button class="btn btn-primary btn-sm no-print" onclick="showView('contas', document.querySelector('[data-view=contas]'))">Ver todas ›</button>
         </div>
         <div id="dash-contas"></div>
       </div>
@@ -510,6 +512,7 @@ async function fsUpdate(col, id, data) {
       </div>
       <div class="dre-container">
         <div class="dre-header"><h2>Mensalidades — <span id="mensalidades-periodo"></span></h2></div>
+        <div class="no-print" style="padding:14px 24px 0"><input type="text" id="ms-busca" placeholder="🔍 Buscar residente..." style="width:100%;border:1px solid var(--border);border-radius:8px;padding:8px 12px;font-size:13px;background:var(--bg)" oninput="renderMensalidades()"></div>
         <table class="folha" id="mensalidades-table">
           <thead><tr>
             <th>Residente</th><th>Categoria</th><th>Unidade</th><th>Vencimento</th><th class="num">Valor</th><th>Status</th><th class="no-print"></th>
@@ -569,6 +572,7 @@ async function fsUpdate(col, id, data) {
           <h2>Despesas Fixas — <span id="despesasfixas-periodo"></span></h2>
           <button class="btn btn-accent btn-sm no-print" onclick="replicarDespesasFixas()">📋 Replicar p/ Próximo Mês</button>
         </div>
+        <div class="no-print" style="padding:14px 24px 0"><input type="text" id="df-busca" placeholder="🔍 Buscar despesa..." style="width:100%;border:1px solid var(--border);border-radius:8px;padding:8px 12px;font-size:13px;background:var(--bg)" oninput="renderDespesasFixas()"></div>
         <table class="folha" id="despesasfixas-table">
           <thead><tr>
             <th>Descrição</th><th>Categoria</th><th>Unidade</th><th>Vencimento</th><th class="num">Valor</th><th>Status</th><th class="no-print"></th>
@@ -625,6 +629,7 @@ async function fsUpdate(col, id, data) {
       </div>
       <div class="dre-container">
         <div class="dre-header"><h2>Despesas Variáveis — <span id="despesasvariaveis-periodo"></span></h2></div>
+        <div class="no-print" style="padding:14px 24px 0"><input type="text" id="dv-busca" placeholder="🔍 Buscar despesa..." style="width:100%;border:1px solid var(--border);border-radius:8px;padding:8px 12px;font-size:13px;background:var(--bg)" oninput="renderDespesasVariaveis()"></div>
         <table class="folha" id="despesasvariaveis-table">
           <thead><tr>
             <th>Descrição</th><th>Categoria</th><th>Unidade</th><th>Data</th><th class="num">Valor</th><th>Status</th><th class="no-print"></th>
@@ -1720,14 +1725,33 @@ async function addMensalidade() {
   } catch(e) { setSyncStatus('❌ Erro ao salvar', '#d94f4f'); alert('Erro: ' + e.message); }
 }
 
+async function marcarTodosPago(ids) {
+  if (!ids.length) return;
+  if (!confirm(`Marcar ${ids.length} item(ns) visível(is) como pago?`)) return;
+  setSyncStatus('🔄 Salvando...', '#f0a500');
+  try {
+    for (const id of ids) await pagarLancamentoSilencioso(id);
+    setSyncStatus('✅ Salvo', '#1a6b4a');
+    refresh();
+  } catch(e) { setSyncStatus('❌ Erro', '#d94f4f'); }
+}
+async function pagarLancamentoSilencioso(id) {
+  const item = lancamentos.find(l => l.id === id);
+  if (!item || item.pago) return;
+  if (item._id) await fsUpdate('lancamentos', item._id, { pago: true });
+  item.pago = true;
+}
+
 function renderMensalidades() {
   const m=selMes(), a=selAno();
   document.getElementById('mensalidades-periodo').textContent = `${MESES[m]} / ${a}`;
+  const busca = (document.getElementById('ms-busca')?.value || '').toLowerCase();
   const items = lancamentos.filter(l => l.tipo==='receita' && l.mes===m && l.ano===a && filtroUnidade(l))
+    .filter(l => !busca || l.desc.toLowerCase().includes(busca) || l.cat.toLowerCase().includes(busca))
     .sort((x,y) => x.desc.localeCompare(y.desc, 'pt-BR'));
   const body = document.getElementById('mensalidades-body');
   if (!items.length) {
-    body.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:30px;color:var(--text-muted)">Nenhuma mensalidade cadastrada para este período.</td></tr>';
+    body.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:30px;color:var(--text-muted)">Nenhuma mensalidade encontrada para este período.</td></tr>';
     document.getElementById('mensalidades-foot').innerHTML = '';
     document.getElementById('mensalidades-resumo').innerHTML = '<p style="color:var(--text-muted);font-size:13px">Sem dados para este período.</p>';
     return;
@@ -1756,9 +1780,11 @@ function renderMensalidades() {
       </td>
     </tr>`;
   }).join('');
+  const pendentesIds = items.filter(l=>!l.pago).map(l=>l.id);
   document.getElementById('mensalidades-foot').innerHTML = `<tr>
     <td colspan="4"><b>TOTAL (${items.length} residentes)</b></td>
-    <td class="num" style="color:var(--primary)">${fmt(total)}</td><td colspan="2"></td>
+    <td class="num" style="color:var(--primary)">${fmt(total)}</td>
+    <td colspan="2" class="no-print">${pendentesIds.length ? `<button class="btn btn-primary btn-sm" onclick='marcarTodosPago(${JSON.stringify(pendentesIds)})'>✓ Marcar todos visíveis como pago</button>` : ''}</td>
   </tr>`;
   document.getElementById('mensalidades-resumo').innerHTML = `
     <div style="display:flex;flex-direction:column;gap:10px">
@@ -1830,11 +1856,13 @@ async function addDespesaFixa() {
 function renderDespesasFixas() {
   const m=selMes(), a=selAno();
   document.getElementById('despesasfixas-periodo').textContent = `${MESES[m]} / ${a}`;
+  const busca = (document.getElementById('df-busca')?.value || '').toLowerCase();
   const items = lancamentos.filter(l => l.tipo==='despesa' && l.freq==='fixa' && l.mes===m && l.ano===a && filtroUnidade(l))
+    .filter(l => !busca || l.desc.toLowerCase().includes(busca) || l.cat.toLowerCase().includes(busca))
     .sort((x,y) => x.desc.localeCompare(y.desc, 'pt-BR'));
   const body = document.getElementById('despesasfixas-body');
   if (!items.length) {
-    body.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:30px;color:var(--text-muted)">Nenhuma despesa fixa cadastrada para este período.</td></tr>';
+    body.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:30px;color:var(--text-muted)">Nenhuma despesa fixa encontrada para este período.</td></tr>';
     document.getElementById('despesasfixas-foot').innerHTML = '';
     document.getElementById('despesasfixas-resumo').innerHTML = '<p style="color:var(--text-muted);font-size:13px">Sem dados para este período.</p>';
     return;
@@ -1863,9 +1891,11 @@ function renderDespesasFixas() {
       </td>
     </tr>`;
   }).join('');
+  const pendentesIdsDF = items.filter(l=>!l.pago).map(l=>l.id);
   document.getElementById('despesasfixas-foot').innerHTML = `<tr>
     <td colspan="4"><b>TOTAL (${items.length} itens)</b></td>
-    <td class="num" style="color:var(--primary)">${fmt(total)}</td><td colspan="2"></td>
+    <td class="num" style="color:var(--primary)">${fmt(total)}</td>
+    <td colspan="2" class="no-print">${pendentesIdsDF.length ? `<button class="btn btn-primary btn-sm" onclick='marcarTodosPago(${JSON.stringify(pendentesIdsDF)})'>✓ Marcar todos visíveis como pago</button>` : ''}</td>
   </tr>`;
   document.getElementById('despesasfixas-resumo').innerHTML = `
     <div style="display:flex;flex-direction:column;gap:10px">
@@ -1936,11 +1966,13 @@ async function addDespesaVariavel() {
 function renderDespesasVariaveis() {
   const m=selMes(), a=selAno();
   document.getElementById('despesasvariaveis-periodo').textContent = `${MESES[m]} / ${a}`;
+  const busca = (document.getElementById('dv-busca')?.value || '').toLowerCase();
   const items = lancamentos.filter(l => l.tipo==='despesa' && l.freq==='variavel' && l.mes===m && l.ano===a && filtroUnidade(l))
+    .filter(l => !busca || l.desc.toLowerCase().includes(busca) || l.cat.toLowerCase().includes(busca))
     .sort((x,y) => x.desc.localeCompare(y.desc, 'pt-BR'));
   const body = document.getElementById('despesasvariaveis-body');
   if (!items.length) {
-    body.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:30px;color:var(--text-muted)">Nenhuma despesa variável cadastrada para este período.</td></tr>';
+    body.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:30px;color:var(--text-muted)">Nenhuma despesa variável encontrada para este período.</td></tr>';
     document.getElementById('despesasvariaveis-foot').innerHTML = '';
     document.getElementById('despesasvariaveis-resumo').innerHTML = '<p style="color:var(--text-muted);font-size:13px">Sem dados para este período.</p>';
     return;
@@ -1960,9 +1992,11 @@ function renderDespesasVariaveis() {
       </td>
     </tr>`;
   }).join('');
+  const pendentesIdsDV = items.filter(l=>!l.pago).map(l=>l.id);
   document.getElementById('despesasvariaveis-foot').innerHTML = `<tr>
     <td colspan="4"><b>TOTAL (${items.length} itens)</b></td>
-    <td class="num" style="color:var(--primary)">${fmt(total)}</td><td colspan="2"></td>
+    <td class="num" style="color:var(--primary)">${fmt(total)}</td>
+    <td colspan="2" class="no-print">${pendentesIdsDV.length ? `<button class="btn btn-primary btn-sm" onclick='marcarTodosPago(${JSON.stringify(pendentesIdsDV)})'>✓ Marcar todos visíveis como pago</button>` : ''}</td>
   </tr>`;
   document.getElementById('despesasvariaveis-resumo').innerHTML = `
     <div style="display:flex;flex-direction:column;gap:10px">
