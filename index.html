@@ -248,7 +248,7 @@ async function fsUpdate(col, id, data) {
     <div class="nav-item" data-view="projecao" onclick="showView('projecao',this)"><span class="icon">🔮</span> Projeção</div>
     <div class="nav-item" data-view="visaopessoal" onclick="showView('visaopessoal',this)"><span class="icon">👤</span> Visão Pessoal</div>
   </div>
-  <div style="padding:10px 20px;font-size:11px;color:rgba(255,255,255,.5);border-top:1px solid rgba(255,255,255,.1)">v22 · atualizado 07/07/2026</div>
+  <div style="padding:10px 20px;font-size:11px;color:rgba(255,255,255,.5);border-top:1px solid rgba(255,255,255,.1)">v23 · atualizado 07/07/2026</div>
 </nav>
 
 <div id="main">
@@ -463,7 +463,7 @@ async function fsUpdate(col, id, data) {
         </div>
         <table class="folha" id="contaspagas-table">
           <thead><tr>
-            <th>Descrição</th><th>Origem</th><th>Categoria</th><th>Unidade</th><th class="num">Valor</th><th>Pago em</th>
+            <th>Descrição</th><th>Origem</th><th>Categoria</th><th>Unidade</th><th class="num">Valor</th><th>Pago em</th><th class="no-print"></th>
           </tr></thead>
           <tbody id="contaspagas-body"></tbody>
           <tfoot id="contaspagas-foot"></tfoot>
@@ -1680,7 +1680,7 @@ async function deleteFuncionario(id) {
     if (item && item._id) await fsDelete('funcionarios', item._id);
     funcionarios = funcionarios.filter(f => f.id !== id);
     setSyncStatus('✅ Excluído', '#1a6b4a');
-    renderFolha();
+    refresh();
   } catch(e) { setSyncStatus('❌ Erro', '#d94f4f'); }
 }
 
@@ -2648,12 +2648,12 @@ async function pagarConta(id) {
 function contasPagasUnificadas() {
   const m=selMes(), a=selAno();
   const doLancamentos = lancamentos.filter(l => l.tipo==='despesa' && l.pago && l.mes===m && l.ano===a && filtroUnidade(l))
-    .map(l => ({ desc:l.desc, cat:l.cat, unidade:l.unidade||'', val:l.val, pagoEm:l.pagoEm||'',
-      origem: l.freq==='fixa' ? 'Despesa Fixa' : 'Despesa Variável' }));
+    .map(l => ({ id:l.id, desc:l.desc, cat:l.cat, unidade:l.unidade||'', val:l.val, pagoEm:l.pagoEm||'',
+      origem: l.freq==='fixa' ? 'Despesa Fixa' : 'Despesa Variável', delFn:'deleteLancamento' }));
   const doFuncionarios = funcionarios.filter(f => f.pago && f.mes===m && f.ano===a)
-    .map(f => ({ desc:f.nome, cat:f.cargo||'—', unidade:'', val:f.sal+(f.bonus||0), pagoEm:f.pagoEm||'', origem:'Folha de Pagamento' }));
+    .map(f => ({ id:f.id, desc:f.nome, cat:f.cargo||'—', unidade:'', val:f.sal+(f.bonus||0), pagoEm:f.pagoEm||'', origem:'Folha de Pagamento', delFn:'deleteFuncionario' }));
   const doContas = contas.filter(c => c.pago && filtroUnidade(c))
-    .map(c => ({ desc:c.desc, cat:c.cat||'—', unidade:c.unidade||'', val:c.val, pagoEm:c.pagoEm||'', origem:'Conta a Pagar' }));
+    .map(c => ({ id:c.id, desc:c.desc, cat:c.cat||'—', unidade:c.unidade||'', val:c.val, pagoEm:c.pagoEm||'', origem:'Conta a Pagar', delFn:'deleteConta' }));
   return [...doLancamentos, ...doFuncionarios, ...doContas];
 }
 
@@ -2681,7 +2681,7 @@ function renderContasPagas() {
 
   const body = document.getElementById('contaspagas-body');
   if (!todos.length) {
-    body.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--text-muted)">Nenhum pagamento registrado para este período.</td></tr>';
+    body.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:30px;color:var(--text-muted)">Nenhum pagamento registrado para este período.</td></tr>';
     document.getElementById('contaspagas-foot').innerHTML = '';
     return;
   }
@@ -2693,10 +2693,11 @@ function renderContasPagas() {
       <td>${c.unidade}</td>
       <td class="num">${fmt(c.val)}</td>
       <td>${c.pagoEm ? c.pagoEm.split('-').reverse().join('/') : '—'}</td>
+      <td class="no-print"><button class="btn btn-danger btn-sm" onclick="${c.delFn}('${c.id}')">✕</button></td>
     </tr>`).join('');
   document.getElementById('contaspagas-foot').innerHTML = `<tr>
     <td colspan="4"><b>TOTAL (${todos.length} pagamentos)</b></td>
-    <td class="num" style="color:var(--primary)">${fmt(todos.reduce((s,c)=>s+c.val,0))}</td><td></td>
+    <td class="num" style="color:var(--primary)">${fmt(todos.reduce((s,c)=>s+c.val,0))}</td><td colspan="2"></td>
   </tr>`;
 }
 
@@ -2719,7 +2720,7 @@ async function deleteConta(id) {
     if (item && item._id) await fsDelete('contas', item._id);
     contas = contas.filter(c => c.id !== id);
     setSyncStatus('✅ Excluído', '#1a6b4a');
-    renderContas();
+    refresh();
   } catch(e) { setSyncStatus('❌ Erro', '#d94f4f'); }
 }
 
