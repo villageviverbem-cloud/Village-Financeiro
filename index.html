@@ -233,7 +233,6 @@ async function fsUpdate(col, id, data) {
     <div class="nav-item active" data-view="dashboard" onclick="showView('dashboard',this)"><span class="icon">📊</span> Dashboard</div>
     <div class="nav-section">Financeiro</div>
     <div class="nav-item" data-view="dre" onclick="showView('dre',this)"><span class="icon">📑</span> DRE</div>
-    <div class="nav-item" data-view="lancamentos" onclick="showView('lancamentos',this)"><span class="icon">📝</span> Lançamentos</div>
     <div class="nav-item" data-view="comparativo" onclick="showView('comparativo',this)"><span class="icon">📈</span> Comparativo</div>
     <div class="nav-section">Recorrentes</div>
     <div class="nav-item" data-view="mensalidades" onclick="showView('mensalidades',this)"><span class="icon">💰</span> Mensalidades</div>
@@ -249,7 +248,7 @@ async function fsUpdate(col, id, data) {
     <div class="nav-item" data-view="projecao" onclick="showView('projecao',this)"><span class="icon">🔮</span> Projeção</div>
     <div class="nav-item" data-view="visaopessoal" onclick="showView('visaopessoal',this)"><span class="icon">👤</span> Visão Pessoal</div>
   </div>
-  <div style="padding:10px 20px;font-size:11px;color:rgba(255,255,255,.5);border-top:1px solid rgba(255,255,255,.1)">v21 · atualizado 07/07/2026</div>
+  <div style="padding:10px 20px;font-size:11px;color:rgba(255,255,255,.5);border-top:1px solid rgba(255,255,255,.1)">v22 · atualizado 07/07/2026</div>
 </nav>
 
 <div id="main">
@@ -277,6 +276,7 @@ async function fsUpdate(col, id, data) {
         <option value="Pessoal">👥 Pessoal</option>
       </select>
     </div>
+    <button class="btn btn-accent btn-sm no-print" onclick="openImportModal()">📥 Importar Planilha</button>
     <span id="sync-status" style="font-size:12px;font-weight:600;padding:4px 12px;border-radius:20px;background:var(--bg);border:1px solid var(--border);white-space:nowrap">☁️ Aguardando</span>
   </div>
 
@@ -389,95 +389,49 @@ async function fsUpdate(col, id, data) {
       </div>
     </div>
 
-    <!-- LANÇAMENTOS -->
-    <div class="view" id="view-lancamentos">
-      <div class="section-header"><h2>Lançamentos Financeiros</h2><button class="btn btn-accent no-print" onclick="openImportModal()">📥 Importar Planilha</button></div>
-      <div class="lancamentos-grid">
+    <!-- CONTAS A PAGAR -->
+    <div class="view" id="view-contas">
+      <div class="section-header"><h2>Contas a Pagar</h2></div>
+      <div id="contas-banner" style="margin-bottom:18px"></div>
+      <div class="two-col" style="margin-bottom:24px">
         <div class="form-card">
-          <h3>➕ Novo Lançamento</h3>
+          <h3>➕ Cadastrar Conta a Pagar</h3>
+          <div class="form-row"><label>Descrição</label><input type="text" id="ca-desc" placeholder="Ex: Compra Parcelada"></div>
+          <div class="form-row"><label>Valor Total (R$)</label><input type="text" inputmode="numeric" id="ca-valor" oninput="maskMoeda(this)" placeholder="0,00"></div>
+          <div class="form-row"><label>Categoria</label><select id="ca-cat"></select></div>
           <div class="form-row"><label>Unidade</label>
-            <select id="f-unidade">
+            <select id="ca-unidade">
               <option value="Unidade I">🏠 Unidade I</option>
               <option value="Unidade II">🏠 Unidade II</option>
               <option value="Pessoal">👥 Pessoal</option>
             </select>
           </div>
-          <div class="form-row"><label>Tipo</label>
-            <select id="f-tipo" onchange="updateCats()">
-              <option value="receita">Receita</option>
-              <option value="despesa">Despesa</option>
+          <div class="form-row"><label>Forma de Pagamento</label>
+            <select id="ca-pagamento">
+              <option value="pix">💠 PIX</option>
+              <option value="boleto">📄 Boleto</option>
+              <option value="avista">💵 À Vista</option>
+              <option value="cartao">💳 Cartão</option>
+              <option value="transferencia">🏦 Transferência</option>
             </select>
           </div>
-          <div class="form-row"><label>Frequência</label>
-            <select id="f-freq">
-              <option value="fixa">🔒 Fixa</option>
-              <option value="variavel">🔀 Variável</option>
+          <div class="form-row"><label>Data de Vencimento (1ª parcela)</label><input type="date" id="ca-venc"></div>
+          <div class="form-row"><label>Nº de Parcelas</label>
+            <select id="ca-parcelas">
+              <option value="1">À vista (1x)</option>
+              <option value="2">2x</option><option value="3">3x</option><option value="4">4x</option>
+              <option value="5">5x</option><option value="6">6x</option><option value="7">7x</option>
+              <option value="8">8x</option><option value="9">9x</option><option value="10">10x</option>
+              <option value="11">11x</option><option value="12">12x</option>
             </select>
           </div>
-          <div class="form-row"><label>Categoria</label><select id="f-cat"></select></div>
-          <div class="form-row"><label>Descrição</label><input type="text" id="f-desc" placeholder="Ex: Mensalidade Sr. João"></div>
-          <div class="form-row"><label>Valor (R$)</label><input type="text" inputmode="numeric" id="f-valor" oninput="maskMoeda(this)" placeholder="0,00"></div>
-          <div class="form-row"><label>Data</label><input type="date" id="f-data"></div>
-          <div id="f-despesa-extra" style="display:none">
-            <div class="form-row"><label>Forma de Pagamento</label>
-              <select id="f-pagamento">
-                <option value="pix">💠 PIX</option>
-                <option value="boleto">📄 Boleto</option>
-                <option value="avista">💵 À Vista</option>
-                <option value="cartao">💳 Cartão</option>
-                <option value="transferencia">🏦 Transferência</option>
-              </select>
-            </div>
-            <div class="form-row"><label>Data de Vencimento</label><input type="date" id="f-vencimento"></div>
-            <div class="form-row"><label>Nº de Parcelas</label>
-              <select id="f-parcelas">
-                <option value="1">À vista (1x)</option>
-                <option value="2">2x</option><option value="3">3x</option><option value="4">4x</option>
-                <option value="5">5x</option><option value="6">6x</option><option value="7">7x</option>
-                <option value="8">8x</option><option value="9">9x</option><option value="10">10x</option>
-                <option value="11">11x</option><option value="12">12x</option>
-              </select>
-            </div>
-          </div>
-          <div class="form-row"><label>Mês de Referência</label>
-            <select id="f-mes">
-              <option value="1">Janeiro</option><option value="2">Fevereiro</option><option value="3">Março</option>
-              <option value="4">Abril</option><option value="5">Maio</option><option value="6">Junho</option>
-              <option value="7">Julho</option><option value="8">Agosto</option><option value="9">Setembro</option>
-              <option value="10">Outubro</option><option value="11">Novembro</option><option value="12">Dezembro</option>
-            </select>
-          </div>
-          <div class="form-row"><label>Ano de Referência</label>
-            <select id="f-ano">
-              <option value="2024">2024</option><option value="2025">2025</option>
-              <option value="2026" selected>2026</option><option value="2027">2027</option>
-            </select>
-          </div>
-          <button class="btn btn-primary" onclick="addLancamento()" style="width:100%">Salvar Lançamento</button>
+          <button class="btn btn-primary" onclick="addConta()" style="width:100%">Salvar Conta a Pagar</button>
         </div>
-        <div>
-          <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
-            <input type="text" id="f-busca" placeholder="🔍 Buscar lançamento..." style="flex:1;border:1px solid var(--border);border-radius:8px;padding:8px 12px;font-size:13px;background:var(--bg)" oninput="renderLancamentos()">
-            <select id="f-filtro-tipo" style="border:1px solid var(--border);border-radius:8px;padding:8px;font-size:13px;background:var(--bg)" onchange="renderLancamentos()">
-              <option value="">Todos</option><option value="receita">Receitas</option><option value="despesa">Despesas</option>
-            </select>
-            <select id="f-filtro-freq" style="border:1px solid var(--border);border-radius:8px;padding:8px;font-size:13px;background:var(--bg)" onchange="renderLancamentos()">
-              <option value="">Fixa e Variável</option><option value="fixa">Só Fixa</option><option value="variavel">Só Variável</option>
-            </select>
-          </div>
-          <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-muted);margin-bottom:10px"><input type="checkbox" id="f-todos-periodos" onchange="renderLancamentos()"> Ver todos os períodos (ignorar mês/ano do topo)</label>
-          <div class="lancamentos-list" id="lista-lancamentos">
-            <h3>Lançamentos — <span id="lancamentos-periodo"></span></h3>
-            <div id="lancamentos-items"><div class="empty-state">Nenhum lançamento cadastrado.</div></div>
-          </div>
+        <div class="form-card">
+          <h3 style="margin-bottom:8px">ℹ️ Como usar</h3>
+          <p style="font-size:13px;color:var(--text-muted);line-height:1.6">Use esta tela para dívidas com vencimento futuro — parceladas ou não. Se o gasto já é do dia a dia e vai ser pago agora, cadastre direto em <b>Despesas Fixas</b> ou <b>Despesas Variáveis</b> e marque como pago na hora.</p>
         </div>
       </div>
-    </div>
-
-    <!-- CONTAS A PAGAR -->
-    <div class="view" id="view-contas">
-      <div class="section-header"><h2>Contas a Pagar</h2></div>
-      <div id="contas-banner" style="margin-bottom:18px"></div>
       <div class="dre-container">
         <div class="dre-header"><h2>Contas Pendentes</h2></div>
         <div id="contas-list"><div class="empty-state">Nenhuma conta cadastrada.</div></div>
@@ -503,7 +457,6 @@ async function fsUpdate(col, id, data) {
             <option value="">Todas as origens</option>
             <option value="Despesa Fixa">Despesas Fixas</option>
             <option value="Despesa Variável">Despesas Variáveis</option>
-            <option value="Lançamento">Lançamentos</option>
             <option value="Folha de Pagamento">Folha de Pagamento</option>
             <option value="Conta a Pagar">Contas a Pagar</option>
           </select>
@@ -537,6 +490,8 @@ async function fsUpdate(col, id, data) {
             <select id="ms-cat">
               <option value="Mensalidades — Particular">Particular</option>
               <option value="Mensalidades — Plano de Saúde">Plano de Saúde</option>
+              <option value="Serviços Extras">Serviços Extras</option>
+              <option value="Locação de Espaço">Locação de Espaço</option>
               <option value="Outras Receitas">Outras (ex: Prefeitura)</option>
             </select>
           </div>
@@ -997,7 +952,7 @@ function selUnidade(){ return document.getElementById('sel-unidade')?.value || '
 function filtroUnidade(l){ const u=selUnidade(); return !u || l.unidade===u; }
 
 // ─── NAVIGATION ──────────────────────────────────────────────────────────────
-const TITLES = { dashboard:'Dashboard', dre:'DRE — Demonstração do Resultado', lancamentos:'Lançamentos', comparativo:'Comparativo entre Meses', folha:'Folha de Pagamento', alertas:'Alertas de Limite', contas:'Contas a Pagar', contaspagas:'Contas Pagas', mensalidades:'Mensalidades', despesasfixas:'Despesas Fixas', despesasvariaveis:'Despesas Variáveis', customorador:'Custo por Morador', projecao:'Projeção Financeira', visaopessoal:'Visão Pessoal' };
+const TITLES = { dashboard:'Dashboard', dre:'DRE — Demonstração do Resultado', comparativo:'Comparativo entre Meses', folha:'Folha de Pagamento', alertas:'Alertas de Limite', contas:'Contas a Pagar', contaspagas:'Contas Pagas', mensalidades:'Mensalidades', despesasfixas:'Despesas Fixas', despesasvariaveis:'Despesas Variáveis', customorador:'Custo por Morador', projecao:'Projeção Financeira', visaopessoal:'Visão Pessoal' };
 let contas = [];
 function showView(id, el) {
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
@@ -1044,7 +999,7 @@ function renderUnidades() {
 }
 
 function refresh() {
-  renderKPIs(); renderCharts(); renderDRE(); renderLancamentos();
+  renderKPIs(); renderCharts(); renderDRE();
   renderComparativo(); renderFolha(); renderAlertas(); renderContas();
   renderContasCards(); renderSetorDashboard(); renderUnidades(); renderMensalidades(); renderSemana(); renderDespesasFixas(); renderTresJuntos();
   renderDespesasVariaveis(); renderCustoMorador(); renderProjecao(); renderContasPagas(); renderVisaoPessoal();
@@ -1052,15 +1007,7 @@ function refresh() {
 }
 
 // ─── CATS ────────────────────────────────────────────────────────────────────
-function updateCats() {
-  const tipo = document.getElementById('f-tipo').value;
-  document.getElementById('f-cat').innerHTML = CATS[tipo].map(c=>`<option>${c}</option>`).join('');
-  document.getElementById('f-despesa-extra').style.display = tipo === 'despesa' ? 'block' : 'none';
-}
-updateCats();
-document.getElementById('f-data').valueAsDate = new Date();
 const nowM = new Date().getMonth()+1;
-document.getElementById('f-mes').value = nowM;
 document.getElementById('sel-mes').value = nowM;
 
 // populate alert cats
@@ -1068,41 +1015,33 @@ document.getElementById('al-cat').innerHTML = '<option value="">Selecione...</op
   CATS.despesa.map(c=>`<option>${c}</option>`).join('');
 document.getElementById('df-cat').innerHTML = CATS.despesa.map(c=>`<option ${c==='Outras Despesas'?'selected':''}>${c}</option>`).join('');
 document.getElementById('dv-cat').innerHTML = CATS.despesa.map(c=>`<option ${c==='Outras Despesas'?'selected':''}>${c}</option>`).join('');
+document.getElementById('ca-cat').innerHTML = CATS.despesa.map(c=>`<option ${c==='Outras Despesas'?'selected':''}>${c}</option>`).join('');
 
-// ─── LANÇAMENTOS ─────────────────────────────────────────────────────────────
-async function addLancamento() {
-  const tipo = document.getElementById('f-tipo').value;
-  const cat  = document.getElementById('f-cat').value;
-  const freq = document.getElementById('f-freq').value;
-  const desc = document.getElementById('f-desc').value.trim();
-  const val  = moedaValor(document.getElementById('f-valor'));
-  const data = document.getElementById('f-data').value;
-  const mes  = +document.getElementById('f-mes').value;
-  const ano  = +document.getElementById('f-ano').value;
-  if (!desc || isNaN(val) || val <= 0) { alert('Preencha descrição e valor válidos.'); return; }
-  const unidade    = document.getElementById('f-unidade').value;
-  const vencimento = tipo === 'despesa' ? document.getElementById('f-vencimento').value : '';
-  const parcelas   = tipo === 'despesa' ? +document.getElementById('f-parcelas').value : 1;
-  const pagamento  = tipo === 'despesa' ? document.getElementById('f-pagamento').value : '';
+// ─── CONTAS A PAGAR ──────────────────────────────────────────────────────────
+async function addConta() {
+  const desc = document.getElementById('ca-desc').value.trim();
+  const val  = moedaValor(document.getElementById('ca-valor'));
+  const cat  = document.getElementById('ca-cat').value;
+  const unidade = document.getElementById('ca-unidade').value;
+  const pagamento = document.getElementById('ca-pagamento').value;
+  const venc = document.getElementById('ca-venc').value;
+  const parcelas = +document.getElementById('ca-parcelas').value;
+  if (!desc || isNaN(val) || val <= 0 || !venc) { alert('Preencha descrição, valor e vencimento válidos.'); return; }
   setSyncStatus('🔄 Salvando...', '#f0a500');
   try {
-    const doc = await fsAdd('lancamentos', { tipo, cat, desc, val, data, mes, ano, unidade, freq, pago: false, createdAt: new Date().toISOString() });
-    lancamentos.unshift({ ...doc, id: doc._id, pago: false });
-    if (tipo === 'despesa' && vencimento) {
-      for (let p = 0; p < parcelas; p++) {
-        const d = new Date(vencimento + 'T12:00:00');
-        d.setMonth(d.getMonth() + p);
-        const venc = d.toISOString().slice(0, 10);
-        const cdesc = parcelas > 1 ? `${desc} (${p+1}/${parcelas})` : desc;
-        const cdoc = await fsAdd('contas', { desc: cdesc, cat, val: val/parcelas, venc, pago: false, pagamento, unidade });
-        contas.push({ ...cdoc, id: cdoc._id, pago: false });
-      }
+    for (let p = 0; p < parcelas; p++) {
+      const d = new Date(venc + 'T12:00:00');
+      d.setMonth(d.getMonth() + p);
+      const vencP = d.toISOString().slice(0, 10);
+      const cdesc = parcelas > 1 ? `${desc} (${p+1}/${parcelas})` : desc;
+      const cdoc = await fsAdd('contas', { desc: cdesc, cat, val: val/parcelas, venc: vencP, pago: false, pagamento, unidade });
+      contas.push({ ...cdoc, id: cdoc._id, pago: false });
     }
     setSyncStatus('✅ Salvo', '#1a6b4a');
     refresh();
-    document.getElementById('f-desc').value = '';
-    document.getElementById('f-valor').value = '';
-    document.getElementById('f-vencimento').value = '';
+    document.getElementById('ca-desc').value = '';
+    document.getElementById('ca-valor').value = '';
+    document.getElementById('ca-venc').value = '';
   } catch(e) { setSyncStatus('❌ Erro ao salvar', '#d94f4f'); alert('Erro: ' + e.message); }
 }
 
@@ -1237,72 +1176,6 @@ async function deleteLancamento(id) {
     setSyncStatus('✅ Excluído', '#1a6b4a');
     refresh();
   } catch(e) { setSyncStatus('❌ Erro', '#d94f4f'); }
-}
-
-function toggleGrupoLanc(i) {
-  const body = document.getElementById('lg-body-'+i);
-  const arrow = document.getElementById('lg-arrow-'+i);
-  if (!body) return;
-  const hidden = body.style.display === 'none';
-  body.style.display = hidden ? '' : 'none';
-  if (arrow) arrow.textContent = hidden ? '▼' : '▶';
-}
-
-function renderLancamentos() {
-  const m = selMes(), a = selAno();
-  const periodoEl = document.getElementById('lancamentos-periodo');
-  if (periodoEl) periodoEl.textContent = `${MESES[m]} / ${a}`;
-  const busca = (document.getElementById('f-busca')?.value || '').toLowerCase();
-  const filtroTipo = document.getElementById('f-filtro-tipo')?.value || '';
-  const filtroFreq = document.getElementById('f-filtro-freq')?.value || '';
-  const todosPeriodo = document.getElementById('f-todos-periodos')?.checked;
-  const items = lancamentos.filter(l => {
-    const matchPeriodo = todosPeriodo || (l.mes===m && l.ano===a);
-    const matchUnidade = filtroUnidade(l);
-    const matchBusca = !busca || l.desc.toLowerCase().includes(busca) || l.cat.toLowerCase().includes(busca);
-    const matchTipo  = !filtroTipo || l.tipo === filtroTipo;
-    const matchFreq  = !filtroFreq || l.freq === filtroFreq;
-    return matchPeriodo && matchUnidade && matchBusca && matchTipo && matchFreq;
-  });
-  const el = document.getElementById('lancamentos-items');
-  if (!items.length) { el.innerHTML = '<div class="empty-state">Nenhum lançamento encontrado para este período.</div>'; return; }
-
-  const grupos = {};
-  items.forEach(l => {
-    if (!grupos[l.cat]) grupos[l.cat] = { items: [], total: 0 };
-    grupos[l.cat].items.push(l);
-    grupos[l.cat].total += (l.tipo==='receita' ? l.val : -l.val);
-  });
-  const catsOrdenadas = Object.keys(grupos).sort((c1,c2) => Math.abs(grupos[c2].total) - Math.abs(grupos[c1].total));
-
-  el.innerHTML = `<div style="padding:8px 20px;font-size:12px;color:var(--text-muted);border-bottom:1px solid var(--border)">${items.length} lançamento(s) em ${catsOrdenadas.length} categoria(s)</div>` +
-    catsOrdenadas.map((cat, gi) => {
-    const g = grupos[cat];
-    const itemsHtml = g.items.map(l => `
-      <div class="lancamento-item">
-        <div>
-          <div class="desc">${l.desc} <span class="tag ${l.tipo}">${l.tipo}</span> <span class="tag ${l.freq==='fixa'?'receita':'despesa'}">${l.freq==='fixa'?'fixa':'variável'}</span> ${l.pago ? '<span class="tag receita">pago</span>' : ''}</div>
-          <div class="cat">${l.unidade||''} · ${MESES[l.mes]}/${l.ano} · ${l.data||''}</div>
-        </div>
-        <div style="display:flex;align-items:center;gap:12px">
-          <div class="val ${l.tipo}">${l.tipo==='receita'?'+':'-'} ${fmt(l.val)}</div>
-          ${!l.pago ? `<button class="btn btn-primary btn-sm no-print" onclick="pagarLancamento('${l.id}')">✓ Pago</button>` : ''}
-          <button class="btn btn-sm no-print" style="background:#e8f5ef;color:var(--primary)" onclick="openEditLancamento('${l.id}')">✏️</button>
-          <button class="btn btn-danger btn-sm no-print" onclick="deleteLancamento('${l.id}')">✕</button>
-        </div>
-      </div>`).join('');
-    return `<div style="border-bottom:1px solid var(--border)">
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:11px 20px;background:var(--primary-pale);cursor:pointer" onclick="toggleGrupoLanc(${gi})">
-        <div style="display:flex;align-items:center;gap:8px">
-          <span id="lg-arrow-${gi}" style="font-size:11px;color:var(--primary)">▶</span>
-          <b style="font-size:13px;color:var(--primary)">${cat}</b>
-          <span style="font-size:11px;color:var(--text-muted)">(${g.items.length})</span>
-        </div>
-        <b style="font-size:13px;color:${g.total>=0?'#1a6b4a':'#d94f4f'}">${fmt(g.total)}</b>
-      </div>
-      <div id="lg-body-${gi}" style="display:none">${itemsHtml}</div>
-    </div>`;
-  }).join('');
 }
 
 // ─── IMPORTAR PLANILHA ────────────────────────────────────────────────────────
@@ -2776,7 +2649,7 @@ function contasPagasUnificadas() {
   const m=selMes(), a=selAno();
   const doLancamentos = lancamentos.filter(l => l.tipo==='despesa' && l.pago && l.mes===m && l.ano===a && filtroUnidade(l))
     .map(l => ({ desc:l.desc, cat:l.cat, unidade:l.unidade||'', val:l.val, pagoEm:l.pagoEm||'',
-      origem: l.freq==='fixa' ? 'Despesa Fixa' : (l.freq==='variavel' ? 'Despesa Variável' : 'Lançamento') }));
+      origem: l.freq==='fixa' ? 'Despesa Fixa' : 'Despesa Variável' }));
   const doFuncionarios = funcionarios.filter(f => f.pago && f.mes===m && f.ano===a)
     .map(f => ({ desc:f.nome, cat:f.cargo||'—', unidade:'', val:f.sal+(f.bonus||0), pagoEm:f.pagoEm||'', origem:'Folha de Pagamento' }));
   const doContas = contas.filter(c => c.pago && filtroUnidade(c))
