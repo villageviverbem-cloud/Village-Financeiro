@@ -140,6 +140,8 @@ async function fsUpdate(col, id, data) {
   table.dre td.num { text-align: right; font-variant-numeric: tabular-nums; font-weight: 500; }
   table.dre td.neg { color: var(--danger); }
   table.dre td.pos { color: var(--primary); }
+  table.dre tr.dre-match td { background: #fff3cd !important; box-shadow: inset 3px 0 0 #f0a500; }
+  table.dre tr.dre-dim td { opacity: .3; }
 
   /* FORMS */
   .lancamentos-grid { display: grid; gap: 18px; grid-template-columns: 1fr 1fr; margin-bottom: 24px; }
@@ -247,7 +249,7 @@ async function fsUpdate(col, id, data) {
     <div class="nav-item" data-view="projecao" onclick="showView('projecao',this)"><span class="icon">🔮</span> Projeção</div>
     <div class="nav-item" data-view="visaopessoal" onclick="showView('visaopessoal',this)"><span class="icon">👤</span> Visão Pessoal</div>
   </div>
-  <div style="padding:10px 20px;font-size:11px;color:rgba(255,255,255,.5);border-top:1px solid rgba(255,255,255,.1)">v19 · atualizado 07/07/2026</div>
+  <div style="padding:10px 20px;font-size:11px;color:rgba(255,255,255,.5);border-top:1px solid rgba(255,255,255,.1)">v20 · atualizado 07/07/2026</div>
 </nav>
 
 <div id="main">
@@ -364,6 +366,9 @@ async function fsUpdate(col, id, data) {
           <h2 id="dre-period-title">DRE — Janeiro / 2026</h2>
           <span style="font-size:13px;opacity:.8">Village Viver Bem</span>
         </div>
+        <div class="no-print" style="padding:12px 20px;border-bottom:1px solid var(--border);background:var(--card)">
+          <input type="text" id="dre-busca" placeholder="🔍 Buscar linha do DRE (ex: aluguel, folha, alimentação)..." oninput="filtrarDRE()" style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:6px;font-size:13px">
+        </div>
         <table class="dre" id="dre-table"></table>
       </div>
     </div>
@@ -444,8 +449,9 @@ async function fsUpdate(col, id, data) {
               <option value="">Fixa e Variável</option><option value="fixa">Só Fixa</option><option value="variavel">Só Variável</option>
             </select>
           </div>
+          <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-muted);margin-bottom:10px"><input type="checkbox" id="f-todos-periodos" onchange="renderLancamentos()"> Ver todos os períodos (ignorar mês/ano do topo)</label>
           <div class="lancamentos-list" id="lista-lancamentos">
-            <h3>Últimos Lançamentos</h3>
+            <h3>Lançamentos — <span id="lancamentos-periodo"></span></h3>
             <div id="lancamentos-items"><div class="empty-state">Nenhum lançamento cadastrado.</div></div>
           </div>
         </div>
@@ -1216,31 +1222,70 @@ async function deleteLancamento(id) {
   } catch(e) { setSyncStatus('❌ Erro', '#d94f4f'); }
 }
 
+function toggleGrupoLanc(i) {
+  const body = document.getElementById('lg-body-'+i);
+  const arrow = document.getElementById('lg-arrow-'+i);
+  if (!body) return;
+  const hidden = body.style.display === 'none';
+  body.style.display = hidden ? '' : 'none';
+  if (arrow) arrow.textContent = hidden ? '▼' : '▶';
+}
+
 function renderLancamentos() {
+  const m = selMes(), a = selAno();
+  const periodoEl = document.getElementById('lancamentos-periodo');
+  if (periodoEl) periodoEl.textContent = `${MESES[m]} / ${a}`;
   const busca = (document.getElementById('f-busca')?.value || '').toLowerCase();
   const filtroTipo = document.getElementById('f-filtro-tipo')?.value || '';
   const filtroFreq = document.getElementById('f-filtro-freq')?.value || '';
-  let items = lancamentos.filter(l => {
+  const todosPeriodo = document.getElementById('f-todos-periodos')?.checked;
+  const items = lancamentos.filter(l => {
+    const matchPeriodo = todosPeriodo || (l.mes===m && l.ano===a);
+    const matchUnidade = filtroUnidade(l);
     const matchBusca = !busca || l.desc.toLowerCase().includes(busca) || l.cat.toLowerCase().includes(busca);
     const matchTipo  = !filtroTipo || l.tipo === filtroTipo;
     const matchFreq  = !filtroFreq || l.freq === filtroFreq;
-    return matchBusca && matchTipo && matchFreq;
-  }).slice(0, 50);
+    return matchPeriodo && matchUnidade && matchBusca && matchTipo && matchFreq;
+  });
   const el = document.getElementById('lancamentos-items');
-  if (!items.length) { el.innerHTML = '<div class="empty-state">Nenhum lançamento encontrado.</div>'; return; }
-  el.innerHTML = items.map(l => `
-    <div class="lancamento-item">
-      <div>
-        <div class="desc">${l.desc} <span class="tag ${l.tipo}">${l.tipo}</span> <span class="tag ${l.freq==='fixa'?'receita':'despesa'}">${l.freq==='fixa'?'fixa':'variável'}</span> ${l.pago ? '<span class="tag receita">pago</span>' : ''}</div>
-        <div class="cat">${l.cat} · ${l.unidade||''} · ${MESES[l.mes]}/${l.ano} · ${l.data||''}</div>
+  if (!items.length) { el.innerHTML = '<div class="empty-state">Nenhum lançamento encontrado para este período.</div>'; return; }
+
+  const grupos = {};
+  items.forEach(l => {
+    if (!grupos[l.cat]) grupos[l.cat] = { items: [], total: 0 };
+    grupos[l.cat].items.push(l);
+    grupos[l.cat].total += (l.tipo==='receita' ? l.val : -l.val);
+  });
+  const catsOrdenadas = Object.keys(grupos).sort((c1,c2) => Math.abs(grupos[c2].total) - Math.abs(grupos[c1].total));
+
+  el.innerHTML = `<div style="padding:8px 20px;font-size:12px;color:var(--text-muted);border-bottom:1px solid var(--border)">${items.length} lançamento(s) em ${catsOrdenadas.length} categoria(s)</div>` +
+    catsOrdenadas.map((cat, gi) => {
+    const g = grupos[cat];
+    const itemsHtml = g.items.map(l => `
+      <div class="lancamento-item">
+        <div>
+          <div class="desc">${l.desc} <span class="tag ${l.tipo}">${l.tipo}</span> <span class="tag ${l.freq==='fixa'?'receita':'despesa'}">${l.freq==='fixa'?'fixa':'variável'}</span> ${l.pago ? '<span class="tag receita">pago</span>' : ''}</div>
+          <div class="cat">${l.unidade||''} · ${MESES[l.mes]}/${l.ano} · ${l.data||''}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px">
+          <div class="val ${l.tipo}">${l.tipo==='receita'?'+':'-'} ${fmt(l.val)}</div>
+          ${!l.pago ? `<button class="btn btn-primary btn-sm no-print" onclick="pagarLancamento('${l.id}')">✓ Pago</button>` : ''}
+          <button class="btn btn-sm no-print" style="background:#e8f5ef;color:var(--primary)" onclick="openEditLancamento('${l.id}')">✏️</button>
+          <button class="btn btn-danger btn-sm no-print" onclick="deleteLancamento('${l.id}')">✕</button>
+        </div>
+      </div>`).join('');
+    return `<div style="border-bottom:1px solid var(--border)">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:11px 20px;background:var(--primary-pale);cursor:pointer" onclick="toggleGrupoLanc(${gi})">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span id="lg-arrow-${gi}" style="font-size:11px;color:var(--primary)">▶</span>
+          <b style="font-size:13px;color:var(--primary)">${cat}</b>
+          <span style="font-size:11px;color:var(--text-muted)">(${g.items.length})</span>
+        </div>
+        <b style="font-size:13px;color:${g.total>=0?'#1a6b4a':'#d94f4f'}">${fmt(g.total)}</b>
       </div>
-      <div style="display:flex;align-items:center;gap:12px">
-        <div class="val ${l.tipo}">${l.tipo==='receita'?'+':'-'} ${fmt(l.val)}</div>
-        ${!l.pago ? `<button class="btn btn-primary btn-sm no-print" onclick="pagarLancamento('${l.id}')">✓ Pago</button>` : ''}
-        <button class="btn btn-sm no-print" style="background:#e8f5ef;color:var(--primary)" onclick="openEditLancamento('${l.id}')">✏️</button>
-        <button class="btn btn-danger btn-sm no-print" onclick="deleteLancamento('${l.id}')">✕</button>
-      </div>
-    </div>`).join('');
+      <div id="lg-body-${gi}" style="display:none">${itemsHtml}</div>
+    </div>`;
+  }).join('');
 }
 
 // ─── IMPORTAR PLANILHA ────────────────────────────────────────────────────────
@@ -1558,7 +1603,7 @@ function renderDRE() {
   function row(label,l,sinal=1,cls='',indent=1){
     const f=sinal*l.fixo, v=sinal*l.variavel, t=sinal*l.total;
     const numCls=x=>x<0?'neg':(x>0?'pos':'');
-    return `<tr class="${cls}"><td style="padding-left:${24+indent*16}px">${label}</td>
+    return `<tr class="dre-row ${cls}" data-label="${label.toLowerCase()}"><td style="padding-left:${24+indent*16}px">${label}</td>
       <td class="num ${numCls(f)}">${fmt(f)}</td>
       <td class="num ${numCls(v)}">${fmt(v)}</td>
       <td class="num ${numCls(t)}" style="font-weight:600">${fmt(t)}</td></tr>`;
@@ -1606,6 +1651,18 @@ function renderDRE() {
       ${trow('RESULTADO LÍQUIDO DO EXERCÍCIO',lucroLiq)}
       <tr class="subtotal"><td style="padding-left:24px;font-size:13px;color:var(--text-muted)">Margem Líquida</td><td colspan="2"></td><td class="num" style="color:var(--text-muted)">${margem.toFixed(2)}%</td></tr>
     </tbody>`;
+  filtrarDRE();
+}
+
+function filtrarDRE() {
+  const busca = (document.getElementById('dre-busca')?.value || '').toLowerCase().trim();
+  document.querySelectorAll('#dre-table .dre-row').forEach(tr => {
+    tr.classList.remove('dre-match','dre-dim');
+    if (!busca) return;
+    const label = tr.getAttribute('data-label') || '';
+    if (label.includes(busca)) tr.classList.add('dre-match');
+    else tr.classList.add('dre-dim');
+  });
 }
 
 // ─── COMPARATIVO ─────────────────────────────────────────────────────────────
@@ -1934,7 +1991,7 @@ function renderDespesasFixas() {
   const busca = (document.getElementById('df-busca')?.value || '').toLowerCase();
   const items = lancamentos.filter(l => l.tipo==='despesa' && l.freq==='fixa' && l.mes===m && l.ano===a && filtroUnidade(l))
     .filter(l => !busca || l.desc.toLowerCase().includes(busca) || l.cat.toLowerCase().includes(busca))
-    .sort((x,y) => x.desc.localeCompare(y.desc, 'pt-BR'));
+    .sort((x,y) => x.cat.localeCompare(y.cat, 'pt-BR') || x.desc.localeCompare(y.desc, 'pt-BR'));
   const body = document.getElementById('despesasfixas-body');
   if (!items.length) {
     body.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:30px;color:var(--text-muted)">Nenhuma despesa fixa encontrada para este período.</td></tr>';
@@ -1951,10 +2008,16 @@ function renderDespesasFixas() {
     if (diff === 0) return '<span style="background:#fff3cd;color:#8a6000;font-size:11px;font-weight:700;padding:3px 8px;border-radius:20px">⚠️ Vence hoje</span>';
     return `<span style="background:#e8f5ef;color:#1a6b4a;font-size:11px;font-weight:700;padding:3px 8px;border-radius:20px">📅 ${diff}d</span>`;
   }
-  let total=0, totalPago=0, totalPendente=0;
+  let total=0, totalPago=0, totalPendente=0, catAnterior=null;
   body.innerHTML = items.map(l => {
     total += l.val; if (l.pago) totalPago += l.val; else totalPendente += l.val;
-    return `<tr>
+    let headerHtml = '';
+    if (l.cat !== catAnterior) {
+      catAnterior = l.cat;
+      const totalCat = items.filter(x=>x.cat===l.cat).reduce((s,x)=>s+x.val,0);
+      headerHtml = `<tr><td colspan="7" style="background:var(--primary-pale);font-weight:700;color:var(--primary);font-size:12px;padding:8px 24px">${l.cat} — ${fmt(totalCat)}</td></tr>`;
+    }
+    return headerHtml + `<tr>
       <td>${l.desc}</td><td style="color:var(--text-muted)">${l.cat}</td><td>${l.unidade||''}</td>
       <td>${l.data ? l.data.split('-').reverse().join('/') : '—'}</td>
       <td class="num">${fmt(l.val)}</td>
@@ -2044,7 +2107,7 @@ function renderDespesasVariaveis() {
   const busca = (document.getElementById('dv-busca')?.value || '').toLowerCase();
   const items = lancamentos.filter(l => l.tipo==='despesa' && l.freq==='variavel' && l.mes===m && l.ano===a && filtroUnidade(l))
     .filter(l => !busca || l.desc.toLowerCase().includes(busca) || l.cat.toLowerCase().includes(busca))
-    .sort((x,y) => x.desc.localeCompare(y.desc, 'pt-BR'));
+    .sort((x,y) => x.cat.localeCompare(y.cat, 'pt-BR') || x.desc.localeCompare(y.desc, 'pt-BR'));
   const body = document.getElementById('despesasvariaveis-body');
   if (!items.length) {
     body.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:30px;color:var(--text-muted)">Nenhuma despesa variável encontrada para este período.</td></tr>';
@@ -2052,10 +2115,16 @@ function renderDespesasVariaveis() {
     document.getElementById('despesasvariaveis-resumo').innerHTML = '<p style="color:var(--text-muted);font-size:13px">Sem dados para este período.</p>';
     return;
   }
-  let total=0, totalPago=0, totalPendente=0;
+  let total=0, totalPago=0, totalPendente=0, catAnteriorDV=null;
   body.innerHTML = items.map(l => {
     total += l.val; if (l.pago) totalPago += l.val; else totalPendente += l.val;
-    return `<tr>
+    let headerHtml = '';
+    if (l.cat !== catAnteriorDV) {
+      catAnteriorDV = l.cat;
+      const totalCat = items.filter(x=>x.cat===l.cat).reduce((s,x)=>s+x.val,0);
+      headerHtml = `<tr><td colspan="7" style="background:var(--primary-pale);font-weight:700;color:var(--primary);font-size:12px;padding:8px 24px">${l.cat} — ${fmt(totalCat)}</td></tr>`;
+    }
+    return headerHtml + `<tr>
       <td>${l.desc}</td><td style="color:var(--text-muted)">${l.cat}</td><td>${l.unidade||''}</td>
       <td>${l.data ? l.data.split('-').reverse().join('/') : '—'}</td>
       <td class="num">${fmt(l.val)}</td>
