@@ -246,9 +246,9 @@ async function fsUpdate(col, id, data) {
     <div class="nav-section">Análises</div>
     <div class="nav-item" data-view="customorador" onclick="showView('customorador',this)"><span class="icon">🧓</span> Custo por Morador</div>
     <div class="nav-item" data-view="projecao" onclick="showView('projecao',this)"><span class="icon">🔮</span> Projeção</div>
-    <div class="nav-item" data-view="visaopessoal" onclick="showView('visaopessoal',this)"><span class="icon">👤</span> Visão Pessoal</div>
+    <div class="nav-item" data-view="visaopessoal" onclick="showView('visaopessoal',this)"><span class="icon">👤</span> Visão por Setor</div>
   </div>
-  <div style="padding:10px 20px;font-size:11px;color:rgba(255,255,255,.5);border-top:1px solid rgba(255,255,255,.1)">v23 · atualizado 07/07/2026</div>
+  <div style="padding:10px 20px;font-size:11px;color:rgba(255,255,255,.5);border-top:1px solid rgba(255,255,255,.1)">v24 · atualizado 08/07/2026</div>
 </nav>
 
 <div id="main">
@@ -706,12 +706,12 @@ async function fsUpdate(col, id, data) {
     <!-- VISÃO PESSOAL -->
     <div class="view" id="view-visaopessoal">
       <div class="section-header">
-        <h2>👤 Visão Pessoal — Onde vai meu dinheiro</h2>
+        <h2 id="visaopessoal-titulo">👤 Visão por Setor</h2>
         <div class="flex-gap no-print">
           <button class="btn btn-primary btn-sm" onclick="window.print()">🖨️ Imprimir</button>
         </div>
       </div>
-      <p style="font-size:13px;color:var(--text-muted);margin-bottom:18px">Só as despesas da unidade Pessoal, agrupadas por setor e detalhadas em subgrupos — clique num setor para abrir.</p>
+      <p style="font-size:13px;color:var(--text-muted);margin-bottom:18px">Despesas da unidade selecionada no topo (ou de todas, se "🏢 Todas" estiver marcado), agrupadas por setor e detalhadas em subgrupos — clique num setor para abrir. Use o seletor "Unidade" no topo para ver cada unidade separada ou as três juntas.</p>
       <div class="cards-row" id="visaopessoal-cards" style="margin-bottom:18px"></div>
       <div class="dre-container">
         <div class="dre-header"><h2>Gastos por Setor — <span id="visaopessoal-periodo"></span></h2></div>
@@ -952,7 +952,7 @@ function selUnidade(){ return document.getElementById('sel-unidade')?.value || '
 function filtroUnidade(l){ const u=selUnidade(); return !u || l.unidade===u; }
 
 // ─── NAVIGATION ──────────────────────────────────────────────────────────────
-const TITLES = { dashboard:'Dashboard', dre:'DRE — Demonstração do Resultado', comparativo:'Comparativo entre Meses', folha:'Folha de Pagamento', alertas:'Alertas de Limite', contas:'Contas a Pagar', contaspagas:'Contas Pagas', mensalidades:'Mensalidades', despesasfixas:'Despesas Fixas', despesasvariaveis:'Despesas Variáveis', customorador:'Custo por Morador', projecao:'Projeção Financeira', visaopessoal:'Visão Pessoal' };
+const TITLES = { dashboard:'Dashboard', dre:'DRE — Demonstração do Resultado', comparativo:'Comparativo entre Meses', folha:'Folha de Pagamento', alertas:'Alertas de Limite', contas:'Contas a Pagar', contaspagas:'Contas Pagas', mensalidades:'Mensalidades', despesasfixas:'Despesas Fixas', despesasvariaveis:'Despesas Variáveis', customorador:'Custo por Morador', projecao:'Projeção Financeira', visaopessoal:'Visão por Setor' };
 let contas = [];
 function showView(id, el) {
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
@@ -2263,7 +2263,7 @@ const SETORES_PESSOAL = [
       { label:'Mecânico / Manutenção', re:/mecanic|\boficina\b|concerto carro|lavagem de carro/i },
       { label:'IPVA / Financiamento', re:/\bipva\b|carros? financiad|licenciamento/i },
     ] },
-  { label:'Casa/Moradia', icon:'🏠', cor:'#1a6b4a', re:/aluguel|condominio|\bluz\b|energia|\bagua\b|\bgas\b|\biptu\b|manuten[cç][aã]o|reforma|parcela casa|compra.*casa|concerto casa|drenagem/i,
+  { label:'Casa/Moradia', icon:'🏠', cor:'#1a6b4a', re:/aluguel|condominio|\bluz\b|\bagua\b|\bgas\b|\biptu\b|manuten[cç][aã]o|reforma|parcela casa|compra.*casa|concerto casa|drenagem/i,
     subgrupos: [
       { label:'Luz / Energia', re:/\bluz\b|energia/i },
       { label:'Água / Gás', re:/\bagua\b|\bgas\b/i },
@@ -2291,6 +2291,11 @@ const SETORES_PESSOAL = [
     ] },
   { label:'Financeiro', icon:'💳', cor:'#64748b', re:/cart[aã]o|cart[oõ]es|emprestimo|\bjuros\b|financiamento/i, subgrupos:null },
   { label:'Pets', icon:'🐾', cor:'#f59e0b', re:/\bpet\b|veterinari|ra[cç][aã]o|petshop|creche cachorro/i, subgrupos:null },
+  { label:'Impostos', icon:'📋', cor:'#475569', re:/imposto|taxa|\binss\b|\bfgts\b|simples|\bacif\b/i, subgrupos:null },
+  { label:'Folha/Salários', icon:'👥', cor:'#8b5cf6', re:/salario|folha|cuidador|enfermeir|funcionari|plantao|folguista|estagiari/i, subgrupos:null },
+  { label:'Empresa/Administrativo', icon:'🏢', cor:'#06b6d4', re:/escrit[oó]rio|sistema|internet|telefone|marketing|consultoria|advoga|licitac|relogio de ponto|maquina de cart/i, subgrupos:null },
+  { label:'Medicamentos/Clínica', icon:'💊', cor:'#e11d48', re:/fralda|luva|oxig[eê]nio|material m[eé]dico|lixo hospitalar|produtos? (para|de) clinica/i, subgrupos:null },
+  { label:'Energia', icon:'⚡', cor:'#f0a500', re:/energia el[eé]trica|energia solar/i, subgrupos:null },
 ];
 function detectarSetorPessoal(desc, cat) {
   const texto = normalizar(`${desc||''} ${cat||''}`);
@@ -2318,7 +2323,10 @@ function renderVisaoPessoal() {
   const periodoEl = document.getElementById('visaopessoal-periodo');
   if (!periodoEl) return;
   periodoEl.textContent = `${MESES[m]} / ${a}`;
-  const despesas = lancamentos.filter(l => l.tipo==='despesa' && l.unidade==='Pessoal' && l.mes===m && l.ano===a);
+  const u = selUnidade();
+  const tituloEl = document.getElementById('visaopessoal-titulo');
+  if (tituloEl) tituloEl.textContent = u ? `👤 Visão por Setor — ${u}` : '👤 Visão por Setor — Todas as Unidades';
+  const despesas = lancamentos.filter(l => l.tipo==='despesa' && l.mes===m && l.ano===a && filtroUnidade(l));
   const grupos = {};
   despesas.forEach(l => {
     const s = detectarSetorPessoal(l.desc, l.cat);
@@ -2327,11 +2335,19 @@ function renderVisaoPessoal() {
     const sub = detectarSubgrupo(s, l.desc, l.cat);
     if (sub) grupos[s.label].subgrupos[sub] = (grupos[s.label].subgrupos[sub] || 0) + l.val;
   });
+  if (u !== 'Pessoal') {
+    const folhaTotal = sumFolha(m, a);
+    if (folhaTotal > 0) {
+      const s = detectarSetorPessoal('folha', 'Salários e Encargos');
+      if (!grupos[s.label]) grupos[s.label] = { ...s, val: 0, subgrupos: {} };
+      grupos[s.label].val += folhaTotal;
+    }
+  }
   const dados = Object.values(grupos).filter(s => s.val > 0).sort((x,y) => y.val - x.val);
   const total = dados.reduce((t,s) => t+s.val, 0);
 
   document.getElementById('visaopessoal-cards').innerHTML = [
-    { label:'Total Pessoal no Período', val: fmt(total), cor:'#d94f4f', icon:'💰' },
+    { label:'Total no Período', val: fmt(total), cor:'#d94f4f', icon:'💰' },
     { label:'Maior Setor', val: dados.length ? `${dados[0].icon} ${dados[0].label}` : '—', cor:'#f0a500', icon:'🏆' },
     { label:'Setores Ativos', val: dados.length, cor:'#1a6b4a', icon:'📊' },
   ].map(k => `
@@ -2342,7 +2358,7 @@ function renderVisaoPessoal() {
     </div>`).join('');
 
   const el = document.getElementById('visaopessoal-lista');
-  if (!dados.length) { el.innerHTML = '<div class="empty-state">Nenhuma despesa pessoal cadastrada para este período.</div>'; return; }
+  if (!dados.length) { el.innerHTML = '<div class="empty-state">Nenhuma despesa cadastrada para este período/unidade.</div>'; return; }
   el.innerHTML = dados.map((s,i) => {
     const pct = total ? (s.val/total*100) : 0;
     const subEntries = Object.entries(s.subgrupos||{}).sort((x,y) => y[1]-x[1]);
