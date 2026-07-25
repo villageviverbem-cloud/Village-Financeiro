@@ -267,7 +267,7 @@ async function fsUpdate(col, id, data) {
     <div class="nav-item" data-view="projecao" onclick="showView('projecao',this)"><span class="icon">🔮</span> Projeção</div>
     <div class="nav-item" data-view="visaopessoal" onclick="showView('visaopessoal',this)"><span class="icon">👤</span> Visão por Setor</div>
   </div>
-  <div style="padding:10px 20px;font-size:11px;color:rgba(255,255,255,.5);border-top:1px solid rgba(255,255,255,.1)">v25 · atualizado 08/07/2026</div>
+  <div style="padding:10px 20px;font-size:11px;color:rgba(255,255,255,.5);border-top:1px solid rgba(255,255,255,.1)">v35 · categorias personalizadas · atualizado 25/07/2026</div>
 </nav>
 
 <div id="main">
@@ -920,23 +920,56 @@ async function fsUpdate(col, id, data) {
 // ─── DATA ────────────────────────────────────────────────────────────────────
 const CATS = {
   receita: ['Mensalidades — Particular','Mensalidades — Plano de Saúde','Serviços Extras','Locação de Espaço','Outras Receitas'],
-  despesa: ['Salários e Encargos','Benefícios (VR/VT)','Horas Extras','Bônus','Funcionário Extra','Plano de Saúde (Funcionários)','Alimentação e Nutrição','Limpeza','Medicamentos e Materiais','Serviços Terceirizados','Aluguel / Locação','Energia Elétrica','Água e Saneamento','Telefone e Internet','Manutenção e Reparos','Impostos e Taxas','Seguros','Depreciação','Marketing e Publicidade','Administrativo / Escritório','Outras Despesas'],
+  despesa: ['Gestão','Folha Salarial','Alimentação','Impostos e Taxas','Limpeza','Remédios e Farmácia','Manutenção e Depreciação','Financeiro','Escritório','Marketing','Outras Despesas'],
 };
 const MESES = ['','Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 
-// ─── SETORES DA DRE (categoria de despesa → setor fixo) ──────────────────────
+// ─── SETORES DA DRE ──────────────────────────────────────────────────────────
+// A DESCRIÇÃO manda: ao digitar, o lançamento cai sozinho no setor certo.
+// A ordem importa — o 1º setor cuja regex casar com a descrição vence.
 const SETORES_DRE = [
-  { key:'pessoal', label:'Folha & Pessoal',            icon:'👥', cats:['Salários e Encargos','Benefícios (VR/VT)','Horas Extras','Bônus','Funcionário Extra','Plano de Saúde (Funcionários)'] },
-  { key:'alim',    label:'Alimentação',                icon:'🍽️', cats:['Alimentação e Nutrição'] },
-  { key:'saude',   label:'Saúde & Enfermagem',         icon:'🩺', cats:['Medicamentos e Materiais'] },
-  { key:'imp',     label:'Impostos & Taxas',           icon:'🏛️', cats:['Impostos e Taxas'] },
-  { key:'util',    label:'Utilidades (Consumo)',       icon:'💡', cats:['Energia Elétrica','Água e Saneamento','Telefone e Internet'] },
-  { key:'ocup',    label:'Ocupação & Manutenção',      icon:'🏠', cats:['Aluguel / Locação','Manutenção e Reparos'] },
-  { key:'limp',    label:'Limpeza & Higiene',          icon:'🧼', cats:['Limpeza'] },
-  { key:'adm',     label:'Administrativo & Financeiro',icon:'💼', cats:['Serviços Terceirizados','Seguros','Depreciação','Administrativo / Escritório'] },
-  { key:'mkt',     label:'Marketing',                  icon:'📣', cats:['Marketing e Publicidade'] },
-  { key:'outros',  label:'Outros',                     icon:'📦', cats:['Outras Despesas'] },
+  { key:'pessoalnaoop', label:'Pessoal / Não Operacional', icon:'🏷️', cor:'#a855f7', cats:[], re:null },
+  { key:'pessoal', label:'Folha Salarial', icon:'👥', cor:'#8b5cf6',
+    cats:['Folha Salarial'],
+    re:/sal[aá]rio|\bfolha\b|b[oô]nus|\bbonus\b|funcion[aá]ri|colaborad|cuidador|enfermeir|t[eé]cnic.*enferm|auxiliar.*enferm|plant[aã]o|folguista|estagi[aá]ri|rescis[aã]o|f[eé]rias|d[eé]cimo|unimed|assessoria.*func|acessoria.*func|vale.?(transp|refei|aliment)|uniforme|hora.?extra|comiss[aã]o|encargo|\binss\b/i },
+  { key:'imp', label:'Impostos e Taxas', icon:'🏛️', cor:'#475569',
+    cats:['Impostos e Taxas'],
+    re:/imposto|\bsimples\b|\bfgts\b|\biptu\b|\bissq?n?\b|tribut|alvar[aá]|\bdae\b|sindicat|vigil[aâ]ncia.?sanit|bombeiro|guia.?de/i },
+  { key:'saude', label:'Remédios e Farmácia', icon:'🩺', cor:'#e11d48',
+    cats:['Remédios e Farmácia'],
+    re:/fralda|rem[eé]dio|remdio|rem[eé]dios|remdios|farm[aá]cia|drogaria|medicament|fisioterap|nutricionist|lixo.?hospitalar|higiene.?morador|beleza.?morador|dia.?da.?beleza|\bexame|consulta|m[eé]dic[oa]|dentist|enfermag|oxig[eê]nio|curativo|luva|sonda|conselho.?de.?fisio|fonoaudi|hospital/i },
+  { key:'alim', label:'Alimentação', icon:'🍽️', cor:'#f97316',
+    cats:['Alimentação'],
+    re:/supermerc|mercado|quitanda|sacol[aã]o|cesta.?b[aá]sica|cestas?.?basica|restaurante|lanchonete|lanche|\bg[aá]s\b|cooks?|cozinh|verdura|hortifrut|a[cç]ougue|padaria|caf[eé]|mc.?donald|comida|sorvete|\bdoce\b|marmit|refei[cç]|feira|frutas?|[aá]gua.?mineral/i },
+  { key:'limp', label:'Limpeza', icon:'🧼', cor:'#06b6d4',
+    cats:['Limpeza'],
+    re:/limpeza|higiene|detergente|desinfet|lavanderia|\bsab[aã]o\b|[aá]gua.?sanit|descart[aá]vel|produto.?de.?limpeza|vassoura/i },
+  { key:'gestao', label:'Gestão', icon:'🧭', cor:'#14b8a6',
+    cats:['Gestão'],
+    re:/gest[aã]o|pr[oó].?labore|prolabore|retirada|distribui.*lucro|dividendo|honor[aá]rio|\bcontad|contabil|contador|consultoria|assessoria(?!.*func)|\bsistema\b|software|assinatura|plataforma|\berp\b|s[oó]cios?|aluguel|loca[cç][aã]o|\bluz\b|energia|\bcpfl\b|\benel\b|celular|telefone|\binternet\b|sabesp|saneamento|conta.?de.?[aá]gua|\b[aá]gua\b(?!.?(mineral|sanit))|banda.?larga|\bvivo\b|\bclaro\b|\btim\b/i },
+  { key:'ocup', label:'Manutenção e Depreciação', icon:'🏠', cor:'#1a6b4a',
+    cats:['Manutenção e Depreciação'],
+    re:/manuten[cç]|reparo|conserto|concerto|pedreiro|entulho|\bobra\b|reforma|material.?de.?constru|constru[cç]|alarme|marcenaria|serralher|hidr[aá]ulic|el[eé]tric.?predial|telhad|pintura|jardin|dedetiza|elevador|predial|deprecia|equipament/i },
+  { key:'mkt', label:'Marketing', icon:'📣', cor:'#ec4899',
+    cats:['Marketing'],
+    re:/\bmkt\b|marketing|an[uú]ncio|publicidade|edi[cç][aã]o.?de.?video|\bvideo\b|social.?media|instagram|facebook|impuls|tr[aá]fego|gr[aá]fica|panfleto|\bdesign\b|filmagem|\bfoto\b|patrocin/i },
+  { key:'fin', label:'Financeiro', icon:'💳', cor:'#64748b',
+    cats:['Financeiro'],
+    re:/cart[aã]o|cartoes|\bbanco\b|tarifa|banc[aá]ri|\bjuros\b|empr[eé]stimo|financiamento|maquin.?de.?cart|\bpix\b|anuidade/i },
+  { key:'escritorio', label:'Escritório', icon:'📇', cor:'#0ea5e9',
+    cats:['Escritório'],
+    re:/escrit[oó]rio|papelaria|material.?de.?escrit|\bsast\b|obriga[cç]|seguro|corr[ei]o|advogad|jur[ií]dic|cart[oó]rio|autentica|xerox|impress/i },
+  { key:'outros', label:'Outros', icon:'📦', cor:'#94a3b8', cats:['Outras Despesas'], re:null },
 ];
+function detectarSetorDRE(desc, cat){
+  // A CATEGORIA manda: se você escolheu uma categoria específica, ela decide o setor.
+  if (cat && cat !== 'Outras Despesas' && cat !== 'Outras Receitas')
+    for (const s of SETORES_DRE) if (s.cats && s.cats.includes(cat)) return s;
+  // Categoria vazia ou "Outras Despesas" → aí sim lê a DESCRIÇÃO.
+  const texto = normalizar(desc||'');
+  for (const s of SETORES_DRE) if (s.re && s.re.test(texto)) return s;
+  return SETORES_DRE.find(s=>s.key==='outros');
+}
 let dreView = 'setor';        // 'setor' (padrão) ou 'contabil'
 let dreSetorAberto = {};      // guarda quais setores estão expandidos
 
@@ -1522,67 +1555,96 @@ function renderDRE() {
 
 // ─── DRE agrupada por SETOR FIXO ─────────────────────────────────────────────
 function renderDRESetor(m,a){
-  function freqSum(tipo,cats,freq){ return cats.reduce((s,c)=>s+lancamentos.filter(l=>l.mes===m&&l.ano===a&&l.tipo===tipo&&l.cat===c&&l.freq===freq&&filtroUnidade(l)).reduce((ss,l)=>ss+l.val,0),0); }
-  function catFixo(cat){ let b=lancamentos.filter(l=>l.mes===m&&l.ano===a&&l.tipo==='despesa'&&l.cat===cat&&l.freq==='fixa'&&filtroUnidade(l)).reduce((s,l)=>s+l.val,0); if(cat==='Salários e Encargos')b+=sumFolhaSalario(m,a); if(cat==='Bônus')b+=sumFolhaBonus(m,a); return b; }
-  function catVar(cat){ return lancamentos.filter(l=>l.mes===m&&l.ano===a&&l.tipo==='despesa'&&l.cat===cat&&l.freq==='variavel'&&filtroUnidade(l)).reduce((s,l)=>s+l.val,0); }
+  // ── RECEITAS (lista todos os lançamentos de receita do período) ──
+  const recLanc = lancamentos.filter(l=>l.mes===m&&l.ano===a&&l.tipo==='receita'&&filtroUnidade(l));
+  const recBruta = recLanc.reduce((s,l)=>s+l.val,0);
+  const recFixa = recLanc.filter(l=>l.freq==='fixa').reduce((s,l)=>s+l.val,0);
+  const recVar  = recLanc.filter(l=>l.freq!=='fixa').reduce((s,l)=>s+l.val,0);
+  // agrupa receita por categoria (só pra mostrar organizado)
+  const recPorCat = {};
+  recLanc.forEach(l=>{ const k=l.cat||'Outras Receitas'; (recPorCat[k]=recPorCat[k]||{f:0,v:0,t:0}); recPorCat[k].t+=l.val; if(l.freq==='fixa')recPorCat[k].f+=l.val; else recPorCat[k].v+=l.val; });
 
-  // Receitas
-  const recParL=['Mensalidades — Particular'], recPlL=['Mensalidades — Plano de Saúde'], recExL=['Serviços Extras','Locação de Espaço','Outras Receitas'];
-  const recPart=sumCat('receita','Mensalidades — Particular',m,a);
-  const recPlano=sumCat('receita','Mensalidades — Plano de Saúde',m,a);
-  const recExtra=recExL.reduce((s,c)=>s+sumCat('receita',c,m,a),0);
-  const recBruta=recPart+recPlano+recExtra;
-  const recFixa=sumFreq('receita','fixa',m,a), recVar=sumFreq('receita','variavel',m,a);
+  // ── DESPESAS: percorre TODOS os lançamentos e joga cada um no seu setor ──
+  const setores = {};
+  SETORES_DRE.forEach(s=>setores[s.key]={...s, fixo:0, variavel:0, total:0, itens:[]});
 
-  // Setores
-  const setores = SETORES_DRE.map(sec=>{
-    const cats = sec.cats.map(c=>({cat:c, total:sumCatComFolha(c,m,a), fixo:catFixo(c), variavel:catVar(c)}));
-    return {...sec, cats,
-      total:cats.reduce((s,c)=>s+c.total,0),
-      fixo:cats.reduce((s,c)=>s+c.fixo,0),
-      variavel:cats.reduce((s,c)=>s+c.variavel,0) };
+  lancamentos.filter(l=>l.mes===m&&l.ano===a&&l.tipo==='despesa'&&filtroUnidade(l)).forEach(l=>{
+    // Se o lançamento está na unidade "Pessoal", vai pro setor Pessoal / Não Operacional.
+    // Caso contrário (empresa), o setor é decidido pela descrição.
+    const sec = (l.unidade==='Pessoal') ? setores['pessoalnaoop'] : setores[detectarSetorDRE(l.desc, l.cat).key];
+    const isFixo = l.freq==='fixa';
+    sec.total+=l.val; if(isFixo)sec.fixo+=l.val; else sec.variavel+=l.val;
+    sec.itens.push({desc:(l.desc||l.cat||'(sem descrição)'), val:l.val, fixo:isFixo});
   });
-  const despTotal=setores.reduce((s,x)=>s+x.total,0);
-  const despFixa=setores.reduce((s,x)=>s+x.fixo,0), despVar=setores.reduce((s,x)=>s+x.variavel,0);
-  const maxSetor=Math.max(1,...setores.map(s=>s.total));
-  const resultado=recBruta-despTotal, margem=recBruta?(resultado/recBruta*100):0;
+
+  // ── FOLHA DE PAGAMENTO (funcionários) → setor Pessoal & Folha (empresa) ──
+  // Só entra quando não estamos filtrando exclusivamente a unidade "Pessoal".
+  if (selUnidade() !== 'Pessoal') {
+    funcionarios.filter(f=>f.mes===m&&f.ano===a).forEach(f=>{
+      const S=setores['pessoal'];
+      if(f.sal){ S.total+=f.sal; S.fixo+=f.sal; S.itens.push({desc:`Salário — ${f.nome||'funcionário'}`, val:f.sal, fixo:true}); }
+      if(f.bonus){ S.total+=f.bonus; S.fixo+=f.bonus; S.itens.push({desc:`Bônus — ${f.nome||'funcionário'}`, val:f.bonus, fixo:true}); }
+    });
+  }
+
+  // Separa EMPRESA (operacional) de PESSOAL (não operacional)
+  const opSetores = SETORES_DRE.filter(s=>s.key!=='pessoalnaoop').map(s=>setores[s.key]);
+  const pessoalSec = setores['pessoalnaoop'];
+  const despOp = opSetores.reduce((s,x)=>s+x.total,0);
+  const despOpFixa = opSetores.reduce((s,x)=>s+x.fixo,0), despOpVar = opSetores.reduce((s,x)=>s+x.variavel,0);
+  const maxSetor = Math.max(1,...opSetores.map(s=>s.total));
+  const resultadoOp = recBruta - despOp, margemOp = recBruta?(resultadoOp/recBruta*100):0;
+  const resultadoFinal = resultadoOp - pessoalSec.total;
 
   const srow=l=>`<tr class="section-title"><td colspan="4">${l}</td></tr>`;
   const hrow=(l,t)=>`<tr class="highlight"><td>${l}</td><td colspan="2"></td><td class="num">${fmt(t)}</td></tr>`;
   const trow=(l,t)=>`<tr class="total"><td>${l}</td><td colspan="2"></td><td class="num">${fmt(t)}</td></tr>`;
-  const posrow=(label,cats)=>{ const f=freqSum('receita',cats,'fixa'), v=freqSum('receita',cats,'variavel'), t=cats.reduce((s,c)=>s+sumCat('receita',c,m,a),0);
-    return `<tr class="dre-row" data-label="${label.toLowerCase()}"><td style="padding-left:40px">${label}</td><td class="num pos">${fmt(f)}</td><td class="num pos">${fmt(v)}</td><td class="num pos" style="font-weight:600">${fmt(t)}</td></tr>`; };
   const sumrow=(label,f,v,t,sinal)=>`<tr class="dre-row subtotal" data-label="${label.toLowerCase()}"><td style="padding-left:40px">${label}</td><td class="num">${fmt(sinal*f)}</td><td class="num">${fmt(sinal*v)}</td><td class="num" style="font-weight:700">${fmt(sinal*t)}</td></tr>`;
 
-  let setHTML='';
-  setores.forEach(sec=>{
-    const pct=despTotal?(sec.total/despTotal*100):0, barW=(sec.total/maxSetor*100), open=!!dreSetorAberto[sec.key];
-    const catLbls=sec.cats.map(c=>c.cat.toLowerCase()).join(' ');
-    setHTML+=`<tr class="dre-row setor-head ${open?'open':''}" id="sh-${sec.key}" data-label="${(sec.label+' '+catLbls).toLowerCase()}" onclick="toggleSetorDRE('${sec.key}')">
+  // Receitas em linhas
+  let recHTML='';
+  Object.keys(recPorCat).forEach(k=>{ const r=recPorCat[k];
+    recHTML+=`<tr class="dre-row" data-label="${k.toLowerCase()}"><td style="padding-left:40px">${k}</td><td class="num pos">${fmt(r.f)}</td><td class="num pos">${fmt(r.v)}</td><td class="num pos" style="font-weight:600">${fmt(r.t)}</td></tr>`; });
+  if(!recHTML) recHTML=`<tr class="dre-row"><td style="padding-left:40px;color:var(--text-muted)">Nenhuma receita lançada neste mês</td><td colspan="3"></td></tr>`;
+
+  // Monta as linhas de um setor (cabeçalho + lançamentos dentro)
+  function setorHTML(sec, base){
+    if(sec.total===0 && sec.itens.length===0) return '';
+    const pct=base?(sec.total/base*100):0, barW=(sec.total/maxSetor*100), open=!!dreSetorAberto[sec.key];
+    let h=`<tr class="dre-row setor-head ${open?'open':''}" id="sh-${sec.key}" data-label="${sec.label.toLowerCase()}" onclick="toggleSetorDRE('${sec.key}')">
       <td><div class="setor-name"><span class="chev">▶</span><span class="setor-emoji">${sec.icon}</span><span>${sec.label}</span></div>
         <div class="setor-bar"><i style="width:${barW.toFixed(0)}%"></i></div>
-        <div class="setor-pct">${pct.toFixed(1)}% das despesas · ${sec.cats.length} categoria(s)</div></td>
+        <div class="setor-pct">${pct.toFixed(1)}% · ${sec.itens.length} lançamento(s)</div></td>
       <td class="num neg">${fmt(-sec.fixo)}</td><td class="num neg">${fmt(-sec.variavel)}</td>
       <td class="num neg" style="font-weight:700">${fmt(-sec.total)}</td></tr>`;
-    sec.cats.forEach(c=>{ setHTML+=`<tr class="dre-row setor-sub ss-${sec.key} ${open?'':'hide'}" data-label="${c.cat.toLowerCase()}"><td>${c.cat}</td><td class="num">${fmt(-c.fixo)}</td><td class="num">${fmt(-c.variavel)}</td><td class="num">${fmt(-c.total)}</td></tr>`; });
-  });
+    sec.itens.sort((x,y)=>y.val-x.val).forEach(it=>{
+      const tag = it.fixo ? '<span style="font-size:10px;color:#8aa;border:1px solid #cdd;border-radius:4px;padding:1px 5px;margin-left:6px">fixo</span>' : '<span style="font-size:10px;color:#b98;border:1px solid #edc;border-radius:4px;padding:1px 5px;margin-left:6px">variável</span>';
+      h+=`<tr class="dre-row setor-sub ss-${sec.key} ${open?'':'hide'}" data-label="${it.desc.toLowerCase()}"><td>${it.desc}${tag}</td><td class="num">${it.fixo?fmt(-it.val):''}</td><td class="num">${it.fixo?'':fmt(-it.val)}</td><td class="num">${fmt(-it.val)}</td></tr>`;
+    });
+    return h;
+  }
+  const opHTML = opSetores.map(s=>setorHTML(s,despOp)).join('');
+  const pessoalHTML = setorHTML(pessoalSec, pessoalSec.total);
 
   document.getElementById('dre-table').innerHTML=`
     <thead><tr><th>Descrição</th><th class="num" style="width:130px">Fixo</th><th class="num" style="width:130px">Variável</th><th class="num" style="width:150px">Total</th></tr></thead>
     <tbody>
-      ${srow('RESUMO GERAL')}
+      ${srow('RESUMO — EMPRESA (RESIDENCIAL)')}
       ${sumrow('Receita Bruta',recFixa,recVar,recBruta,1)}
-      ${sumrow('Despesa Total',despFixa,despVar,despTotal,-1)}
+      ${sumrow('Despesa Operacional',despOpFixa,despOpVar,despOp,-1)}
       ${srow('RECEITAS')}
-      ${posrow('Mensalidades — Particular',recParL)}
-      ${posrow('Mensalidades — Plano de Saúde',recPlL)}
-      ${posrow('Serviços Extras e Outros',recExL)}
+      ${recHTML}
       ${hrow('= RECEITA TOTAL',recBruta)}
-      ${srow('DESPESAS POR SETOR — clique para abrir')}
-      ${setHTML}
-      ${hrow('= DESPESA TOTAL',-despTotal)}
-      ${trow('RESULTADO DO EXERCÍCIO',resultado)}
-      <tr class="subtotal"><td style="padding-left:24px;font-size:13px;color:var(--text-muted)">Margem sobre Receita</td><td colspan="2"></td><td class="num" style="color:var(--text-muted)">${margem.toFixed(2)}%</td></tr>
+      ${srow('DESPESAS DA EMPRESA POR SETOR — clique para ver os lançamentos')}
+      ${opHTML}
+      ${hrow('= DESPESA OPERACIONAL',-despOp)}
+      ${trow('= RESULTADO DA EMPRESA',resultadoOp)}
+      <tr class="subtotal"><td style="padding-left:24px;font-size:13px;color:var(--text-muted)">Margem sobre Receita</td><td colspan="2"></td><td class="num" style="color:var(--text-muted)">${margemOp.toFixed(2)}%</td></tr>
+      ${pessoalSec.total>0 ? `
+      ${srow('🏷️ PESSOAL / NÃO OPERACIONAL — fora do resultado da empresa (unidade "Pessoal")')}
+      ${pessoalHTML}
+      ${hrow('= TOTAL PESSOAL',-pessoalSec.total)}
+      ${trow('= RESULTADO FINAL (após pessoal)',resultadoFinal)}` : ''}
     </tbody>`;
 }
 
@@ -2373,6 +2435,7 @@ const SETORES_DETALHADOS = [
   { label:'Lazer',              re:/viagem|passeio|cinema|clube|festa|academia|crossfit|beach tennis|tenis|\bhotel\b|\bjudo\b|ingresso|churrasco/i, cor:'#0ea5e9', icon:'🎉' },
   { label:'Cuidados Pessoais',  re:/cabelo|sal[aã]o|\bunha\b|sobrancelha|sombrancelha|sombracelha|barbearia|estetica|maquiagem|depila/i, cor:'#ec4899', icon:'💇' },
   { label:'Pets',               re:/\bpet\b|veterinari|ra[cç][aã]o|petshop|creche cachorro/i, cor:'#f59e0b', icon:'🐾' },
+  { label:'Gestão',            re:/gest[aã]o|pr[oó].?labore|prolabore|retirada|distribui.*lucro|dividendo|honor[aá]rio|\bcontad|contabil|contador|consultoria|assessoria(?!.*func)|\bsistema\b|software|assinatura|plataforma|\berp\b|s[oó]cios?/i, cor:'#14b8a6', icon:'🧭' },
   { label:'Financeiro',         re:/cart[aã]o|cart[oõ]es|emprestimo|\bjuros\b|financiamento/i, cor:'#64748b', icon:'💳' },
   { label:'Impostos',           re:/imposto|taxa|\binss\b|\bfgts\b|simples|\bacif\b/i, cor:'#475569', icon:'📋' },
   { label:'Folha/Salários',     re:/salario|folha|cuidador|enfermeir|funcionari|\bdia\b|\bnoite\b|estagiari/i, cor:'#8b5cf6', icon:'👥' },
@@ -2381,9 +2444,9 @@ const SETORES_DETALHADOS = [
   { label:'Energia',            re:/energia el[eé]trica/i, cor:'#f0a500', icon:'⚡' },
 ];
 function detectarSetor(desc, cat) {
-  const texto = normalizar(`${desc||''} ${cat||''}`);
-  for (const s of SETORES_DETALHADOS) if (s.re.test(texto)) return s;
-  return { label:'Outros', cor:'#94a3b8', icon:'📦' };
+  // Usa a MESMA classificação da DRE (categoria manda; descrição como reserva).
+  const s = detectarSetorDRE(desc, cat);
+  return { label:s.label, cor:s.cor||'#94a3b8', icon:s.icon };
 }
 
 // ─── VISÃO PESSOAL (setor + subgrupo) ─────────────────────────────────────────
@@ -2531,13 +2594,15 @@ function renderSetorDashboard() {
   const despesas = lancamentos.filter(l => l.tipo==='despesa' && l.mes===m && l.ano===a && filtroUnidade(l));
   const grupos = {};
   despesas.forEach(l => {
-    const s = detectarSetor(l.desc, l.cat);
+    const s = (l.unidade==='Pessoal')
+      ? { label:'Pessoal / Não Operacional', cor:'#a855f7', icon:'🏷️' }
+      : detectarSetor(l.desc, l.cat);
     if (!grupos[s.label]) grupos[s.label] = { ...s, val: 0 };
     grupos[s.label].val += l.val;
   });
   const folhaTotal = sumFolha(m, a);
-  if (folhaTotal > 0) {
-    const s = detectarSetor('folha', 'Salários e Encargos');
+  if (folhaTotal > 0 && selUnidade() !== 'Pessoal') {
+    const s = detectarSetor('folha', 'Folha Salarial');
     if (!grupos[s.label]) grupos[s.label] = { ...s, val: 0 };
     grupos[s.label].val += folhaTotal;
   }
