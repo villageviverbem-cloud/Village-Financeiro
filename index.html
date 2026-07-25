@@ -143,6 +143,25 @@ async function fsUpdate(col, id, data) {
   table.dre tr.dre-match td { background: #fff3cd !important; box-shadow: inset 3px 0 0 #f0a500; }
   table.dre tr.dre-dim td { opacity: .3; }
 
+  /* DRE por Setor */
+  .dre-toggle { display:flex; gap:8px; padding:12px 20px 0; }
+  .dre-toggle button { padding:7px 16px; border:1px solid var(--border); background:var(--card); color:var(--text-muted); border-radius:8px; font-size:13px; font-weight:600; cursor:pointer; }
+  .dre-toggle button.on { background:var(--primary); color:#fff; border-color:var(--primary); }
+  table.dre tr.setor-head { cursor:pointer; }
+  table.dre tr.setor-head td { background:#eef6f4; font-weight:700; border-bottom:1px solid #dDebE4; }
+  table.dre tr.setor-head:hover td { background:#e4f0ec; }
+  table.dre .setor-name { display:flex; align-items:center; gap:10px; }
+  table.dre .setor-name .chev { font-size:10px; color:var(--text-muted); transition:transform .2s; display:inline-block; width:10px; }
+  table.dre tr.setor-head.open .chev { transform:rotate(90deg); }
+  table.dre .setor-emoji { font-size:16px; }
+  table.dre .setor-bar { height:4px; background:#d7e6e1; border-radius:2px; margin-top:6px; max-width:240px; overflow:hidden; }
+  table.dre .setor-bar > i { display:block; height:100%; background:var(--primary); border-radius:2px; }
+  table.dre .setor-pct { font-size:11px; color:var(--text-muted); font-weight:600; margin-top:3px; }
+  table.dre tr.setor-sub td { padding-top:9px; padding-bottom:9px; font-size:13px; color:#556; background:#fcfdfd; }
+  table.dre tr.setor-sub td:first-child { padding-left:60px; }
+  table.dre tr.setor-sub.hide { display:none; }
+  @media print { table.dre tr.setor-sub.hide { display:table-row; } .dre-toggle { display:none; } }
+
   /* FORMS */
   .lancamentos-grid { display: grid; gap: 18px; grid-template-columns: 1fr 1fr; margin-bottom: 24px; }
   .form-card { background: var(--card); border-radius: 12px; padding: 22px; border: 1px solid var(--border); }
@@ -381,6 +400,10 @@ async function fsUpdate(col, id, data) {
         <div class="dre-header">
           <h2 id="dre-period-title">DRE — Janeiro / 2026</h2>
           <span style="font-size:13px;opacity:.8">Village Viver Bem</span>
+        </div>
+        <div class="no-print dre-toggle">
+          <button id="dre-tab-setor" class="on" onclick="setDreView('setor')">📊 Por Setor</button>
+          <button id="dre-tab-contabil" onclick="setDreView('contabil')">📋 Visão Contábil</button>
         </div>
         <div class="no-print" style="padding:12px 20px;border-bottom:1px solid var(--border);background:var(--card)">
           <input type="text" id="dre-busca" placeholder="🔍 Buscar linha do DRE (ex: aluguel, folha, alimentação)..." oninput="filtrarDRE()" style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:6px;font-size:13px">
@@ -900,6 +923,22 @@ const CATS = {
   despesa: ['Salários e Encargos','Benefícios (VR/VT)','Horas Extras','Bônus','Funcionário Extra','Plano de Saúde (Funcionários)','Alimentação e Nutrição','Limpeza','Medicamentos e Materiais','Serviços Terceirizados','Aluguel / Locação','Energia Elétrica','Água e Saneamento','Telefone e Internet','Manutenção e Reparos','Impostos e Taxas','Seguros','Depreciação','Marketing e Publicidade','Administrativo / Escritório','Outras Despesas'],
 };
 const MESES = ['','Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+
+// ─── SETORES DA DRE (categoria de despesa → setor fixo) ──────────────────────
+const SETORES_DRE = [
+  { key:'pessoal', label:'Folha & Pessoal',            icon:'👥', cats:['Salários e Encargos','Benefícios (VR/VT)','Horas Extras','Bônus','Funcionário Extra','Plano de Saúde (Funcionários)'] },
+  { key:'alim',    label:'Alimentação',                icon:'🍽️', cats:['Alimentação e Nutrição'] },
+  { key:'saude',   label:'Saúde & Enfermagem',         icon:'🩺', cats:['Medicamentos e Materiais'] },
+  { key:'imp',     label:'Impostos & Taxas',           icon:'🏛️', cats:['Impostos e Taxas'] },
+  { key:'util',    label:'Utilidades (Consumo)',       icon:'💡', cats:['Energia Elétrica','Água e Saneamento','Telefone e Internet'] },
+  { key:'ocup',    label:'Ocupação & Manutenção',      icon:'🏠', cats:['Aluguel / Locação','Manutenção e Reparos'] },
+  { key:'limp',    label:'Limpeza & Higiene',          icon:'🧼', cats:['Limpeza'] },
+  { key:'adm',     label:'Administrativo & Financeiro',icon:'💼', cats:['Serviços Terceirizados','Seguros','Depreciação','Administrativo / Escritório'] },
+  { key:'mkt',     label:'Marketing',                  icon:'📣', cats:['Marketing e Publicidade'] },
+  { key:'outros',  label:'Outros',                     icon:'📦', cats:['Outras Despesas'] },
+];
+let dreView = 'setor';        // 'setor' (padrão) ou 'contabil'
+let dreSetorAberto = {};      // guarda quais setores estão expandidos
 
 let lancamentos  = [];
 let funcionarios = [];
@@ -1460,9 +1499,95 @@ function renderCharts() {
 }
 
 // ─── DRE ─────────────────────────────────────────────────────────────────────
+function setDreView(v){
+  dreView = v;
+  const t1=document.getElementById('dre-tab-setor'), t2=document.getElementById('dre-tab-contabil');
+  if(t1) t1.classList.toggle('on', v==='setor');
+  if(t2) t2.classList.toggle('on', v==='contabil');
+  renderDRE();
+}
+function toggleSetorDRE(key){
+  dreSetorAberto[key] = !dreSetorAberto[key];
+  const head = document.getElementById('sh-'+key);
+  if(head) head.classList.toggle('open', dreSetorAberto[key]);
+  document.querySelectorAll('.ss-'+key).forEach(tr=>tr.classList.toggle('hide', !dreSetorAberto[key]));
+}
+
 function renderDRE() {
   const m=selMes(), a=selAno();
   document.getElementById('dre-period-title').textContent=`DRE — ${MESES[m]} / ${a}`;
+  if (dreView === 'setor') renderDRESetor(m,a); else renderDREContabil(m,a);
+  filtrarDRE();
+}
+
+// ─── DRE agrupada por SETOR FIXO ─────────────────────────────────────────────
+function renderDRESetor(m,a){
+  function freqSum(tipo,cats,freq){ return cats.reduce((s,c)=>s+lancamentos.filter(l=>l.mes===m&&l.ano===a&&l.tipo===tipo&&l.cat===c&&l.freq===freq&&filtroUnidade(l)).reduce((ss,l)=>ss+l.val,0),0); }
+  function catFixo(cat){ let b=lancamentos.filter(l=>l.mes===m&&l.ano===a&&l.tipo==='despesa'&&l.cat===cat&&l.freq==='fixa'&&filtroUnidade(l)).reduce((s,l)=>s+l.val,0); if(cat==='Salários e Encargos')b+=sumFolhaSalario(m,a); if(cat==='Bônus')b+=sumFolhaBonus(m,a); return b; }
+  function catVar(cat){ return lancamentos.filter(l=>l.mes===m&&l.ano===a&&l.tipo==='despesa'&&l.cat===cat&&l.freq==='variavel'&&filtroUnidade(l)).reduce((s,l)=>s+l.val,0); }
+
+  // Receitas
+  const recParL=['Mensalidades — Particular'], recPlL=['Mensalidades — Plano de Saúde'], recExL=['Serviços Extras','Locação de Espaço','Outras Receitas'];
+  const recPart=sumCat('receita','Mensalidades — Particular',m,a);
+  const recPlano=sumCat('receita','Mensalidades — Plano de Saúde',m,a);
+  const recExtra=recExL.reduce((s,c)=>s+sumCat('receita',c,m,a),0);
+  const recBruta=recPart+recPlano+recExtra;
+  const recFixa=sumFreq('receita','fixa',m,a), recVar=sumFreq('receita','variavel',m,a);
+
+  // Setores
+  const setores = SETORES_DRE.map(sec=>{
+    const cats = sec.cats.map(c=>({cat:c, total:sumCatComFolha(c,m,a), fixo:catFixo(c), variavel:catVar(c)}));
+    return {...sec, cats,
+      total:cats.reduce((s,c)=>s+c.total,0),
+      fixo:cats.reduce((s,c)=>s+c.fixo,0),
+      variavel:cats.reduce((s,c)=>s+c.variavel,0) };
+  });
+  const despTotal=setores.reduce((s,x)=>s+x.total,0);
+  const despFixa=setores.reduce((s,x)=>s+x.fixo,0), despVar=setores.reduce((s,x)=>s+x.variavel,0);
+  const maxSetor=Math.max(1,...setores.map(s=>s.total));
+  const resultado=recBruta-despTotal, margem=recBruta?(resultado/recBruta*100):0;
+
+  const srow=l=>`<tr class="section-title"><td colspan="4">${l}</td></tr>`;
+  const hrow=(l,t)=>`<tr class="highlight"><td>${l}</td><td colspan="2"></td><td class="num">${fmt(t)}</td></tr>`;
+  const trow=(l,t)=>`<tr class="total"><td>${l}</td><td colspan="2"></td><td class="num">${fmt(t)}</td></tr>`;
+  const posrow=(label,cats)=>{ const f=freqSum('receita',cats,'fixa'), v=freqSum('receita',cats,'variavel'), t=cats.reduce((s,c)=>s+sumCat('receita',c,m,a),0);
+    return `<tr class="dre-row" data-label="${label.toLowerCase()}"><td style="padding-left:40px">${label}</td><td class="num pos">${fmt(f)}</td><td class="num pos">${fmt(v)}</td><td class="num pos" style="font-weight:600">${fmt(t)}</td></tr>`; };
+  const sumrow=(label,f,v,t,sinal)=>`<tr class="dre-row subtotal" data-label="${label.toLowerCase()}"><td style="padding-left:40px">${label}</td><td class="num">${fmt(sinal*f)}</td><td class="num">${fmt(sinal*v)}</td><td class="num" style="font-weight:700">${fmt(sinal*t)}</td></tr>`;
+
+  let setHTML='';
+  setores.forEach(sec=>{
+    const pct=despTotal?(sec.total/despTotal*100):0, barW=(sec.total/maxSetor*100), open=!!dreSetorAberto[sec.key];
+    const catLbls=sec.cats.map(c=>c.cat.toLowerCase()).join(' ');
+    setHTML+=`<tr class="dre-row setor-head ${open?'open':''}" id="sh-${sec.key}" data-label="${(sec.label+' '+catLbls).toLowerCase()}" onclick="toggleSetorDRE('${sec.key}')">
+      <td><div class="setor-name"><span class="chev">▶</span><span class="setor-emoji">${sec.icon}</span><span>${sec.label}</span></div>
+        <div class="setor-bar"><i style="width:${barW.toFixed(0)}%"></i></div>
+        <div class="setor-pct">${pct.toFixed(1)}% das despesas · ${sec.cats.length} categoria(s)</div></td>
+      <td class="num neg">${fmt(-sec.fixo)}</td><td class="num neg">${fmt(-sec.variavel)}</td>
+      <td class="num neg" style="font-weight:700">${fmt(-sec.total)}</td></tr>`;
+    sec.cats.forEach(c=>{ setHTML+=`<tr class="dre-row setor-sub ss-${sec.key} ${open?'':'hide'}" data-label="${c.cat.toLowerCase()}"><td>${c.cat}</td><td class="num">${fmt(-c.fixo)}</td><td class="num">${fmt(-c.variavel)}</td><td class="num">${fmt(-c.total)}</td></tr>`; });
+  });
+
+  document.getElementById('dre-table').innerHTML=`
+    <thead><tr><th>Descrição</th><th class="num" style="width:130px">Fixo</th><th class="num" style="width:130px">Variável</th><th class="num" style="width:150px">Total</th></tr></thead>
+    <tbody>
+      ${srow('RESUMO GERAL')}
+      ${sumrow('Receita Bruta',recFixa,recVar,recBruta,1)}
+      ${sumrow('Despesa Total',despFixa,despVar,despTotal,-1)}
+      ${srow('RECEITAS')}
+      ${posrow('Mensalidades — Particular',recParL)}
+      ${posrow('Mensalidades — Plano de Saúde',recPlL)}
+      ${posrow('Serviços Extras e Outros',recExL)}
+      ${hrow('= RECEITA TOTAL',recBruta)}
+      ${srow('DESPESAS POR SETOR — clique para abrir')}
+      ${setHTML}
+      ${hrow('= DESPESA TOTAL',-despTotal)}
+      ${trow('RESULTADO DO EXERCÍCIO',resultado)}
+      <tr class="subtotal"><td style="padding-left:24px;font-size:13px;color:var(--text-muted)">Margem sobre Receita</td><td colspan="2"></td><td class="num" style="color:var(--text-muted)">${margem.toFixed(2)}%</td></tr>
+    </tbody>`;
+}
+
+// ─── DRE contábil (visão clássica) ───────────────────────────────────────────
+function renderDREContabil(m,a){
   function sumCatFreq(tipo,cat,freq){ return lancamentos.filter(l=>l.mes===m&&l.ano===a&&l.tipo===tipo&&l.cat===cat&&l.freq===freq&&filtroUnidade(l)).reduce((s,l)=>s+l.val,0); }
   const S=(tipo,cats)=>cats.reduce((s,c)=>s+sumCat(tipo,c,m,a),0);
   const SF=(tipo,cats,freq)=>cats.reduce((s,c)=>s+sumCatFreq(tipo,c,freq),0);
@@ -1558,11 +1683,17 @@ function renderDRE() {
       ${trow('RESULTADO LÍQUIDO DO EXERCÍCIO',lucroLiq)}
       <tr class="subtotal"><td style="padding-left:24px;font-size:13px;color:var(--text-muted)">Margem Líquida</td><td colspan="2"></td><td class="num" style="color:var(--text-muted)">${margem.toFixed(2)}%</td></tr>
     </tbody>`;
-  filtrarDRE();
 }
 
 function filtrarDRE() {
   const busca = (document.getElementById('dre-busca')?.value || '').toLowerCase().trim();
+  if (dreView === 'setor') {
+    document.querySelectorAll('#dre-table .setor-sub').forEach(tr => {
+      const key = [...tr.classList].find(c=>c.startsWith('ss-'))?.slice(3);
+      const open = key ? dreSetorAberto[key] : false;
+      tr.classList.toggle('hide', busca ? false : !open);
+    });
+  }
   document.querySelectorAll('#dre-table .dre-row').forEach(tr => {
     tr.classList.remove('dre-match','dre-dim');
     if (!busca) return;
