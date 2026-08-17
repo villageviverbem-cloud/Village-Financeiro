@@ -74,6 +74,117 @@ async function fsUpdate(col, id, data) {
   if (d.error) throw new Error(d.error.message);
   return fromFS(d);
 }
+
+// ─── ACESSO (mesmo PIN da Equipe do app principal — só quem é Gestão/admin entra) ────
+const SUPABASE_URL = 'https://ilssyjyabxgtwwodbzpz.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_eyYyLvibu5i4bZMAzcDTCg_Hn2Oea6j';
+async function finApi(caminho) {
+  const r = await fetch(SUPABASE_URL + '/rest/v1/' + caminho, {
+    headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY }
+  });
+  if (!r.ok) throw new Error('Erro ' + r.status);
+  return r.json();
+}
+async function finSha256(texto) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(texto));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+function finFuncionarioAtual() {
+  try { return JSON.parse(localStorage.getItem('vv_funcionario') || 'null'); } catch (_e) { return null; }
+}
+function finTemAcessoGestao(f) { return !!(f && (f.admin || f.papel === 'gestao')); }
+
+function finMostrarApp() {
+  const login = document.getElementById('tela-login-financeiro');
+  const sidebar = document.getElementById('sidebar');
+  const main = document.getElementById('main');
+  if (login) login.style.display = 'none';
+  if (sidebar) sidebar.style.removeProperty('display');
+  if (main) main.style.removeProperty('display');
+  loadAllData();
+}
+
+let finGestores = [];
+let finAlvo = null;
+let finPin = '';
+
+async function finCarregarNomes() {
+  const el = document.getElementById('fin-lista-nomes');
+  try {
+    const lista = await finApi('funcionarios?select=id,nome,admin,papel&ativo=eq.true&order=nome');
+    finGestores = lista.filter(f => f.admin || f.papel === 'gestao');
+    if (!finGestores.length) {
+      el.innerHTML = '<p style="color:#8a99a8;font-size:13px">Nenhum funcionário com acesso de Gestão cadastrado ainda. Marque alguém como Administrador ou cargo "Gestão" na tela Equipe do app principal.</p>';
+      return;
+    }
+    el.innerHTML = finGestores.map(f => `<button type="button" class="fin-nome-btn" data-id="${f.id}">${f.nome}</button>`).join('');
+    el.querySelectorAll('.fin-nome-btn').forEach(b => b.addEventListener('click', () => finEscolherNome(b.dataset.id)));
+  } catch (e) {
+    el.innerHTML = '⚠️ Não consegui carregar a lista. (' + e.message + ')';
+  }
+}
+
+function finEscolherNome(id) {
+  finAlvo = finGestores.find(f => f.id === id);
+  finPin = '';
+  document.getElementById('fin-lista-nomes').style.display = 'none';
+  document.getElementById('fin-pin-area').style.display = '';
+  document.getElementById('fin-pin-titulo').textContent = 'PIN de ' + finAlvo.nome;
+  document.getElementById('fin-pin-msg').textContent = '';
+  finAtualizarDots();
+}
+
+function finVoltarLista() {
+  finAlvo = null; finPin = '';
+  document.getElementById('fin-pin-area').style.display = 'none';
+  document.getElementById('fin-lista-nomes').style.display = '';
+}
+
+function finAtualizarDots() {
+  const el = document.getElementById('fin-pin-dots');
+  if (el) el.textContent = '●'.repeat(finPin.length) + '○'.repeat(4 - finPin.length);
+}
+
+function finTecla(t) {
+  if (t === 'apagar') { finPin = finPin.slice(0, -1); finAtualizarDots(); return; }
+  if (finPin.length >= 4) return;
+  finPin += t;
+  finAtualizarDots();
+  if (finPin.length === 4) finConfirmar();
+}
+
+async function finConfirmar() {
+  const msg = document.getElementById('fin-pin-msg');
+  msg.textContent = 'Verificando...';
+  try {
+    const hash = await finSha256(finPin);
+    const rows = await finApi('funcionarios?select=id,nome,pin_hash,admin,papel&id=eq.' + encodeURIComponent(finAlvo.id));
+    const f = rows[0];
+    if (f && f.pin_hash === hash) {
+      localStorage.setItem('vv_funcionario', JSON.stringify({ id: f.id, nome: f.nome, admin: !!f.admin, papel: f.papel || 'cuidadora' }));
+      finMostrarApp();
+    } else {
+      msg.textContent = 'PIN incorreto, tenta de novo.';
+      finPin = '';
+      finAtualizarDots();
+    }
+  } catch (e) {
+    msg.textContent = 'Erro: ' + e.message;
+    finPin = '';
+    finAtualizarDots();
+  }
+}
+
+function finSair() {
+  localStorage.removeItem('vv_funcionario');
+  location.reload();
+}
+
+function finIniciar() {
+  const f = finFuncionarioAtual();
+  if (finTemAcessoGestao(f)) { finMostrarApp(); return; }
+  finCarregarNomes();
+}
 </script>
 <style>
   :root {
@@ -243,7 +354,40 @@ async function fsUpdate(col, id, data) {
 </head>
 <body>
 
-<nav id="sidebar">
+<div id="tela-login-financeiro" style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--bg,#f4f7fa);padding:20px">
+  <div style="background:#fff;border:1px solid var(--border,#dbe2ea);border-radius:16px;padding:32px 28px;max-width:360px;width:100%;text-align:center">
+    <h2 style="margin:0 0 4px;font-size:19px;color:var(--primary,#1a6b4a)">🏡 Village Viver Bem</h2>
+    <p style="margin:0 0 22px;font-size:13px;color:var(--text-muted,#7a8a99)">Financeiro · acesso restrito à Gestão</p>
+    <div id="fin-lista-nomes" style="display:flex;flex-direction:column;gap:8px">Carregando...</div>
+    <div id="fin-pin-area" style="display:none">
+      <p id="fin-pin-titulo" style="font-size:14px;font-weight:600;margin-bottom:14px"></p>
+      <div id="fin-pin-dots" style="font-size:26px;letter-spacing:10px;font-weight:700;margin-bottom:14px">○○○○</div>
+      <div id="fin-pin-msg" style="font-size:12.5px;color:#d94f4f;min-height:18px;margin-bottom:8px"></div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;max-width:220px;margin:0 auto 14px">
+        <button type="button" class="fin-pin-btn" onclick="finTecla('1')">1</button>
+        <button type="button" class="fin-pin-btn" onclick="finTecla('2')">2</button>
+        <button type="button" class="fin-pin-btn" onclick="finTecla('3')">3</button>
+        <button type="button" class="fin-pin-btn" onclick="finTecla('4')">4</button>
+        <button type="button" class="fin-pin-btn" onclick="finTecla('5')">5</button>
+        <button type="button" class="fin-pin-btn" onclick="finTecla('6')">6</button>
+        <button type="button" class="fin-pin-btn" onclick="finTecla('7')">7</button>
+        <button type="button" class="fin-pin-btn" onclick="finTecla('8')">8</button>
+        <button type="button" class="fin-pin-btn" onclick="finTecla('9')">9</button>
+        <div></div>
+        <button type="button" class="fin-pin-btn" onclick="finTecla('0')">0</button>
+        <button type="button" class="fin-pin-btn" onclick="finTecla('apagar')">⌫</button>
+      </div>
+      <button type="button" onclick="finVoltarLista()" style="background:none;border:none;color:var(--primary,#1a6b4a);text-decoration:underline;font-size:13px;cursor:pointer">← Voltar</button>
+    </div>
+  </div>
+</div>
+<style>
+  .fin-nome-btn{padding:13px;border:1px solid var(--border,#dbe2ea);border-radius:10px;background:#fff;font-size:14.5px;font-weight:600;cursor:pointer;color:var(--text,#1f2933)}
+  .fin-nome-btn:hover{background:var(--bg,#f4f7fa)}
+  .fin-pin-btn{padding:14px 0;border:1px solid var(--border,#dbe2ea);border-radius:10px;background:#fff;font-size:18px;font-weight:700;cursor:pointer;color:var(--text,#1f2933)}
+  .fin-pin-btn:hover{background:var(--bg,#f4f7fa)}
+</style>
+<nav id="sidebar" style="display:none">
   <div class="sidebar-logo">
     <h2>🏡 Village Viver Bem</h2>
     <span>Gestão Financeira</span>
@@ -268,10 +412,13 @@ async function fsUpdate(col, id, data) {
     <div class="nav-item" data-view="projecao" onclick="showView('projecao',this)"><span class="icon">🔮</span> Projeção</div>
     <div class="nav-item" data-view="visaopessoal" onclick="showView('visaopessoal',this)"><span class="icon">👤</span> Visão por Setor</div>
   </div>
-  <div style="padding:10px 20px;font-size:11px;color:rgba(255,255,255,.5);border-top:1px solid rgba(255,255,255,.1)">v39 · desmarcar pago (corrige replicação) · atualizado 25/07/2026</div>
+  <div style="padding:10px 20px;font-size:11px;color:rgba(255,255,255,.5);border-top:1px solid rgba(255,255,255,.1);display:flex;justify-content:space-between;align-items:center">
+    <span>v39 · desmarcar pago (corrige replicação) · atualizado 25/07/2026</span>
+    <a href="#" onclick="finSair(); return false;" class="no-print" style="color:rgba(255,255,255,.8);text-decoration:underline;white-space:nowrap;margin-left:8px">🔒 Sair</a>
+  </div>
 </nav>
 
-<div id="main">
+<div id="main" style="display:none">
   <div class="topbar">
     <div class="topbar-title" id="page-title">Dashboard</div>
     <div class="period-select no-print">
@@ -3215,7 +3362,10 @@ function exportCSV() {
 }
 
 // ─── INIT ─────────────────────────────────────────────────────────────────────
-loadAllData();
+// finIniciar() decide: se já tem sessão de Gestão salva, chama loadAllData() direto;
+// senão mostra a tela de PIN. Precisa rodar aqui no fim, depois que loadAllData() e
+// as outras funções da página já foram definidas.
+finIniciar();
 </script>
 </body>
 </html>
